@@ -1,0 +1,84 @@
+CREATE TABLE usuarios (
+  id         BIGSERIAL PRIMARY KEY,
+  nome       VARCHAR(120) NOT NULL,
+  email      VARCHAR(160) NOT NULL UNIQUE,
+  senha_hash VARCHAR(255) NOT NULL,
+  tipo       VARCHAR(20)  NOT NULL CHECK (tipo IN ('ALUNO','ADMIN')),
+  ativo      BOOLEAN      NOT NULL DEFAULT TRUE,
+  criado_em  TIMESTAMP    NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE planos (
+  id             BIGSERIAL PRIMARY KEY,
+  nome           VARCHAR(80) NOT NULL,
+  valor_centavos INTEGER     NOT NULL CHECK (valor_centavos > 0),
+  duracao_dias   INTEGER     NOT NULL CHECK (duracao_dias IN (30, 90, 180, 365)),
+  ativo          BOOLEAN     NOT NULL DEFAULT TRUE,
+  criado_em      TIMESTAMP   NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE assinaturas (
+  id          BIGSERIAL PRIMARY KEY,
+  usuario_id  BIGINT      NOT NULL REFERENCES usuarios(id),
+  plano_id    BIGINT      NOT NULL REFERENCES planos(id),
+  status      VARCHAR(20) NOT NULL CHECK (status IN ('PENDENTE','ATIVA','CANCELADA','EXPIRADA')),
+  data_inicio DATE,
+  data_fim    DATE,
+  criado_em   TIMESTAMP   NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE pagamentos (
+  id              BIGSERIAL PRIMARY KEY,
+  assinatura_id   BIGINT      NOT NULL REFERENCES assinaturas(id),
+  provedor        VARCHAR(30) NOT NULL, -- ex: MERCADO_PAGO / ASAAS / ABACATEPAY
+  valor_centavos  INTEGER     NOT NULL CHECK (valor_centavos > 0),
+  status          VARCHAR(20) NOT NULL CHECK (status IN ('CRIADO','AGUARDANDO','PAGO','CANCELADO','EXPIRADO')),
+  txid            VARCHAR(120),
+  qr_code_base64  TEXT,
+  copia_e_cola    TEXT,
+  criado_em       TIMESTAMP   NOT NULL DEFAULT NOW(),
+  pago_em         TIMESTAMP
+);
+
+CREATE TABLE wods (
+  id        BIGSERIAL PRIMARY KEY,
+  data_wod  DATE         NOT NULL UNIQUE,
+  titulo    VARCHAR(120) NOT NULL,
+  descricao TEXT         NOT NULL,
+  criado_em TIMESTAMP    NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE sessoes_aula (
+  id              BIGSERIAL PRIMARY KEY,
+  data_aula        DATE        NOT NULL,
+  hora_inicio      TIME        NOT NULL,
+  duracao_minutos  INTEGER     NOT NULL CHECK (duracao_minutos BETWEEN 30 AND 120),
+  capacidade       INTEGER     NOT NULL CHECK (capacidade BETWEEN 1 AND 60),
+  status           VARCHAR(20) NOT NULL CHECK (status IN ('ABERTA','LOTADA','CANCELADA')),
+  wod_id           BIGINT      NOT NULL REFERENCES wods(id),
+  criado_em        TIMESTAMP   NOT NULL DEFAULT NOW(),
+  CONSTRAINT uq_sessao_dia_hora UNIQUE (data_aula, hora_inicio)
+);
+
+CREATE TABLE reservas (
+  id           BIGSERIAL PRIMARY KEY,
+  sessao_id    BIGINT      NOT NULL REFERENCES sessoes_aula(id),
+  aluno_id     BIGINT      NOT NULL REFERENCES usuarios(id),
+  status       VARCHAR(20) NOT NULL CHECK (status IN ('CONFIRMADA','CANCELADA')),
+  criado_em    TIMESTAMP   NOT NULL DEFAULT NOW(),
+  cancelado_em TIMESTAMP,
+  CONSTRAINT uq_reserva_unica UNIQUE (sessao_id, aluno_id)
+);
+
+
+
+-- regra só 1 assinatura ativa
+CREATE UNIQUE INDEX uq_assinatura_ativa
+ON assinaturas(usuario_id)
+WHERE status = 'ATIVA';
+
+CREATE INDEX idx_assinaturas_usuario ON assinaturas(usuario_id);
+CREATE INDEX idx_pagamentos_assinatura ON pagamentos(assinatura_id);
+CREATE INDEX idx_sessoes_data ON sessoes_aula(data_aula);
+CREATE INDEX idx_reservas_sessao ON reservas(sessao_id);
+CREATE INDEX idx_reservas_aluno ON reservas(aluno_id);
