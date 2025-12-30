@@ -1,0 +1,149 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UsuarioTipo {
+  ALUNO
+  ADMIN
+}
+
+enum AssinaturaStatus {
+  PENDENTE
+  ATIVA
+  CANCELADA
+  EXPIRADA
+}
+
+enum PagamentoStatus {
+  CRIADO
+  AGUARDANDO
+  PAGO
+  CANCELADO
+  EXPIRADO
+}
+
+enum SessaoStatus {
+  ABERTA
+  LOTADA
+  CANCELADA
+}
+
+enum ReservaStatus {
+  CONFIRMADA
+  CANCELADA
+}
+
+model Usuario {
+  id        BigInt      @id @default(autoincrement())
+  nome      String      @db.VarChar(120)
+  email     String      @unique @db.VarChar(160)
+  senhaHash String      @map("senha_hash") @db.VarChar(255)
+  tipo      UsuarioTipo
+  ativo     Boolean     @default(true)
+  criadoEm  DateTime    @default(now()) @map("criado_em") @db.Timestamp(6)
+
+  assinaturas Assinatura[]
+  reservas    Reserva[] @relation("ReservasDoAluno")
+
+  @@map("usuarios")
+}
+
+model Plano {
+  id            BigInt   @id @default(autoincrement())
+  nome          String   @db.VarChar(80)
+  valorCentavos Int      @map("valor_centavos")
+  duracaoDias   Int      @map("duracao_dias")
+  ativo         Boolean  @default(true)
+  criadoEm      DateTime @default(now()) @map("criado_em") @db.Timestamp(6)
+
+  assinaturas Assinatura[]
+
+  @@map("planos")
+}
+
+model Assinatura {
+  id         BigInt           @id @default(autoincrement())
+  usuarioId  BigInt           @map("usuario_id")
+  planoId    BigInt           @map("plano_id")
+  status     AssinaturaStatus
+  dataInicio DateTime?        @map("data_inicio") @db.Date
+  dataFim    DateTime?        @map("data_fim") @db.Date
+  criadoEm   DateTime         @default(now()) @map("criado_em") @db.Timestamp(6)
+
+  usuario    Usuario          @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
+  plano      Plano            @relation(fields: [planoId], references: [id], onDelete: Restrict)
+  pagamentos Pagamento[]
+
+  @@index([usuarioId], map: "idx_assinaturas_usuario")
+  @@map("assinaturas")
+}
+
+model Pagamento {
+  id           BigInt         @id @default(autoincrement())
+  assinaturaId BigInt         @map("assinatura_id")
+  provedor     String         @db.VarChar(30)
+  valorCentavos Int           @map("valor_centavos")
+  status       PagamentoStatus
+  txid         String?        @db.VarChar(120)
+  qrCodeBase64 String?        @map("qr_code_base64")
+  copiaECola   String?        @map("copia_e_cola")
+  criadoEm     DateTime       @default(now()) @map("criado_em") @db.Timestamp(6)
+  pagoEm       DateTime?      @map("pago_em") @db.Timestamp(6)
+
+  assinatura   Assinatura     @relation(fields: [assinaturaId], references: [id], onDelete: Restrict)
+
+  @@index([assinaturaId], map: "idx_pagamentos_assinatura")
+  @@map("pagamentos")
+}
+
+model Wod {
+  id        BigInt   @id @default(autoincrement())
+  dataWod   DateTime @unique @map("data_wod") @db.Date
+  titulo    String   @db.VarChar(120)
+  descricao String
+  criadoEm  DateTime @default(now()) @map("criado_em") @db.Timestamp(6)
+
+  sessoes SessaoAula[]
+
+  @@map("wods")
+}
+
+model SessaoAula {
+  id             BigInt      @id @default(autoincrement())
+  dataAula       DateTime    @map("data_aula") @db.Date
+  horaInicio     DateTime    @map("hora_inicio") @db.Time(6)
+  duracaoMinutos Int         @map("duracao_minutos")
+  capacidade     Int
+  status         SessaoStatus
+  wodId          BigInt      @map("wod_id")
+  criadoEm       DateTime    @default(now()) @map("criado_em") @db.Timestamp(6)
+
+  wod      Wod       @relation(fields: [wodId], references: [id], onDelete: Restrict)
+  reservas Reserva[]
+
+  @@unique([dataAula, horaInicio], map: "uq_sessao_dia_hora")
+  @@index([dataAula], map: "idx_sessoes_data")
+  @@map("sessoes_aula")
+}
+
+model Reserva {
+  id          BigInt        @id @default(autoincrement())
+  sessaoId    BigInt        @map("sessao_id")
+  alunoId     BigInt        @map("aluno_id")
+  status      ReservaStatus
+  criadoEm    DateTime      @default(now()) @map("criado_em") @db.Timestamp(6)
+  canceladoEm DateTime?     @map("cancelado_em") @db.Timestamp(6)
+
+  sessao SessaoAula @relation(fields: [sessaoId], references: [id], onDelete: Restrict)
+  aluno  Usuario    @relation("ReservasDoAluno", fields: [alunoId], references: [id], onDelete: Restrict)
+
+  @@unique([sessaoId, alunoId], map: "uq_reserva_unica")
+  @@index([sessaoId], map: "idx_reservas_sessao")
+  @@index([alunoId], map: "idx_reservas_aluno")
+  @@map("reservas")
+}

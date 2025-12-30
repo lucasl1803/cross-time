@@ -1,0 +1,209 @@
+{
+	"info": {
+		"_postman_id": "26b0f4ff-fcad-4016-b889-55f1db624550",
+		"name": "CrossTime API",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "51154524",
+		"_collection_link": "https://lucaslealc1803-7855443.postman.co/workspace/Lucas-Leal-Cardoso's-Workspace~1eb1c5e8-e0f2-416c-8e1c-ebad561fe4e3/collection/51154524-26b0f4ff-fcad-4016-b889-55f1db624550?action=share&source=collection_link&creator=51154524"
+	},
+	"item": [
+		{
+			"name": "POST - Login",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n  \"email\": \"lucas@crosstime.com\",\r\n  \"senha\": \"aluno123\"\r\n}\r\n",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://localhost:3000/auth/login\n",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "3000",
+					"path": [
+						"auth",
+						"login\n"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "POST - Register",
+			"request": {
+				"auth": {
+					"type": "noauth"
+				},
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n  \"nome\": \"Novo Aluno\",\r\n  \"email\": \"novo@crosstime.com\",\r\n  \"senha\": \"123456\"\r\n}\r\n",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://localhost:3000/auth/register\n",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "3000",
+					"path": [
+						"auth",
+						"register\n"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "GET - WOD do dia",
+			"request": {
+				"auth": {
+					"type": "noauth"
+				},
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://localhost:3000/wods/today\n",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "3000",
+					"path": [
+						"wods",
+						"today\n"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "GET - Sessões por data",
+			"request": {
+				"auth": {
+					"type": "noauth"
+				},
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://localhost:3000/sessoes?date=2025-12-30\n",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "3000",
+					"path": [
+						"sessoes"
+					],
+					"query": [
+						{
+							"key": "date",
+							"value": "2025-12-30\n"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "POST - Check-in",
+			"request": {
+				"auth": {
+					"type": "noauth"
+				},
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n  \"sessaoId\": 1\r\n}\r\n",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://localhost:3000/checkins\n",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "3000",
+					"path": [
+						"checkins\n"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "DELETE - Cancelar Check-in",
+			"request": {
+				"auth": {
+					"type": "noauth"
+				},
+				"method": "DELETE",
+				"header": [],
+				"url": {
+					"raw": "http://localhost:3000/checkins/1\n",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "3000",
+					"path": [
+						"checkins",
+						"1\n"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "POST - PIX (pagamentos)",
+			"request": {
+				"auth": {
+					"type": "noauth"
+				},
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n  \"assinaturaId\": 1\r\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://localhost:3000/pagamentos/pix",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "3000",
+					"path": [
+						"pagamentos",
+						"pix"
+					]
+				}
+			},
+			"response": []
+		}
+	]
+}
