@@ -172,6 +172,38 @@
 				}
 			},
 			"response": []
+		},
+		{
+			"name": "POST - PIX (pagamentos)",
+			"request": {
+				"auth": {
+					"type": "noauth"
+				},
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n  \"assinaturaId\": 1\r\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://localhost:3000/pagamentos/pix",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "3000",
+					"path": [
+						"pagamentos",
+						"pix"
+					]
+				}
+			},
+			"response": []
 		}
 	]
 }
