@@ -10,7 +10,7 @@ function addDays(date: Date, days: number) {
 }
 
 async function main() {
-  // limpa (ordem importa por FK)
+  
   await prisma.reserva.deleteMany();
   await prisma.pagamento.deleteMany();
   await prisma.assinatura.deleteMany();
@@ -85,7 +85,7 @@ async function main() {
     },
   });
 
-  // sessões de hoje
+  // sessões de aula para hoje 
   const sessao1 = await prisma.sessaoAula.create({
     data: {
       dataAula: new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate()),
@@ -108,7 +108,7 @@ async function main() {
     },
   });
 
-  // exemplo de reserva (check-in)
+  // check-in do aluno   
   await prisma.reserva.create({
     data: {
       sessaoId: sessao1.id,
