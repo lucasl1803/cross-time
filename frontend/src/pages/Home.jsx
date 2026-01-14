@@ -1,0 +1,482 @@
+import { useMemo, useState } from "react";
+import userIcon from "../assets/Usuarioicone.png";
+
+const mockSessoes = [
+  { id: 1, horario: "06:00", modalidade: "Crossfit", coach: "Coach Flávia", inscritos: 0, capacidade: 0 },
+  { id: 2, horario: "07:00", modalidade: "Crossfit", coach: "Coach Flávia", inscritos: 0, capacidade: 0 },
+  { id: 3, horario: "08:00", modalidade: "Crossfit", coach: "Coach Bruno", inscritos: 0, capacidade: 0 },
+  { id: 4, horario: "12:15", modalidade: "Crossfit", coach: "Coach Flávia", inscritos: 0, capacidade: 0 },
+  { id: 5, horario: "16:30", modalidade: "Crossfit", coach: "Coach Ana Luiza", inscritos: 0, capacidade: 0 },
+  { id: 6, horario: "17:30", modalidade: "Crossfit", coach: "Coach Bruno", inscritos: 0, capacidade: 0 },
+  { id: 7, horario: "18:30", modalidade: "Crossfit", coach: "Coach Ana Luiza", inscritos: 0, capacidade: 0 },
+];
+
+export default function Home() {
+  const sessoes = useMemo(() => mockSessoes, []);
+
+  const [reservadas, setReservadas] = useState([]); 
+  const [hoverId, setHoverId] = useState(null);
+
+  
+  const [modalOpen, setModalOpen] = useState(false);
+  const [selectedSessao, setSelectedSessao] = useState(null);
+
+  const qtdReservasHoje = reservadas.length;
+
+  function openModal(sessao) {
+    setSelectedSessao(sessao);
+    setModalOpen(true);
+  }
+
+  function closeModal() {
+    setModalOpen(false);
+    setSelectedSessao(null);
+  }
+
+  function confirmarReserva() {
+    if (!selectedSessao) return;
+
+    setReservadas((prev) => {
+      if (prev.includes(selectedSessao.id)) return prev;
+      return [...prev, selectedSessao.id];
+    });
+
+    closeModal();
+  }
+
+  function cancelarReserva() {
+    if (!selectedSessao) return;
+
+    setReservadas((prev) => prev.filter((id) => id !== selectedSessao.id));
+    closeModal();
+  }
+
+  const isSelectedReserved = selectedSessao ? reservadas.includes(selectedSessao.id) : false;
+
+  return (
+    <div style={s.page}>
+      <aside style={s.nav}>
+        <div style={s.brand}>
+          <span style={s.brandCross}>CROSS</span>
+          <span style={s.brandTime}>TIME</span>
+        </div>
+
+        <div style={s.navItems}>
+          <div style={{ ...s.navItem, ...s.navItemActive }}>Home</div>
+          <div style={{ ...s.navItem, ...s.navItemIdle }}>Minhas reservas</div>
+          <div style={{ ...s.navItem, ...s.navItemIdle }}>Perfil</div>
+        </div>
+
+        <a href="/login" style={s.logout}>
+          Sair
+        </a>
+      </aside>
+
+      <main style={s.content}>
+        <section style={s.headerCard}>
+          <div>
+            <div style={s.hello}>Olá, Lucas!</div>
+            <div style={s.subtitle}>Vamos realizar o check-in hoje?</div>
+          </div>
+
+          <div style={s.badge}>
+            Minhas reservas: <strong>{qtdReservasHoje}</strong>
+          </div>
+        </section>
+
+        <section style={s.listWrap}>
+          <div style={s.list}>
+            {sessoes.map((sessao) => {
+              const isHover = hoverId === sessao.id;
+              const isReserved = reservadas.includes(sessao.id);
+
+              const inscritos = Number(sessao.inscritos ?? 0);
+              const capacidade = Number(sessao.capacidade ?? 0);
+
+              return (
+                <div
+                  key={sessao.id}
+                  onMouseEnter={() => setHoverId(sessao.id)}
+                  onMouseLeave={() => setHoverId(null)}
+                  onClick={() => openModal(sessao)}
+                  style={{
+                    ...s.card,
+                    ...(isHover ? s.cardHover : null),
+                    ...(isReserved ? s.cardReserved : null),
+                  }}
+                  title="Clique para ver opções"
+                  role="button"
+                >
+                  <div style={s.cardLeft}>
+                    <div style={s.time}>{sessao.horario}</div>
+
+                    <div>
+                      <div style={s.modality}>{sessao.modalidade}</div>
+                      <div style={s.coach}>{sessao.coach}</div>
+                      {isReserved && <div style={s.reservedTag}>Reservado</div>}
+                    </div>
+                  </div>
+
+                  <div style={s.cardRight}>
+                    <span style={s.spots}>
+                      {inscritos}/{capacidade}
+                    </span>
+
+                    <span style={s.userPill}>
+                      <img src={userIcon} alt="" style={s.userIcon} />
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      </main>
+
+      {modalOpen && (
+        <div style={s.modalOverlay} onClick={closeModal} role="presentation">
+          <div
+            style={s.modalCard}
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+          >
+            <div style={s.modalHeader}>
+              <div style={s.modalTitle}>
+                {isSelectedReserved ? "Gerenciar reserva" : "Confirmar reserva"}
+              </div>
+              <button style={s.modalClose} onClick={closeModal} aria-label="Fechar">
+                ✕
+              </button>
+            </div>
+
+            <div style={s.modalBody}>
+              <div style={s.modalLine}>
+                <span style={s.modalLabel}>Horário</span>
+                <span style={s.modalValue}>{selectedSessao?.horario}</span>
+              </div>
+
+              <div style={s.modalLine}>
+                <span style={s.modalLabel}>Aula</span>
+                <span style={s.modalValue}>{selectedSessao?.modalidade}</span>
+              </div>
+
+              <div style={s.modalLine}>
+                <span style={s.modalLabel}>Coach</span>
+                <span style={s.modalValue}>{selectedSessao?.coach}</span>
+              </div>
+
+              <div style={s.modalHint}>
+                {isSelectedReserved
+                  ? "Você já reservou esta aula. Deseja cancelar?"
+                  : "Ao confirmar, esta aula será adicionada em Minhas reservas."}
+              </div>
+            </div>
+
+            <div style={s.modalActions}>
+              <button style={s.btnGhost} onClick={closeModal}>
+                Voltar
+              </button>
+
+              {isSelectedReserved ? (
+                <button style={s.btnDanger} onClick={cancelarReserva}>
+                  Cancelar reserva
+                </button>
+              ) : (
+                <button style={s.btnPrimary} onClick={confirmarReserva}>
+                  Confirmar
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const s = {
+  page: {
+    height: "100vh",
+    overflow: "hidden",
+    background: "#1E1E1E",
+    color: "rgba(255,255,255,.92)",
+    display: "grid",
+    gridTemplateColumns: "320px 1fr",
+    fontFamily: "Poppins, Inter, Arial, sans-serif",
+  },
+
+  nav: {
+    background: "#003637",
+    borderRight: "1px solid rgba(255,255,255,.08)",
+    padding: 24,
+    display: "flex",
+    flexDirection: "column",
+  },
+
+  brand: {
+    display: "flex",
+    alignItems: "baseline",
+    marginBottom: 26,
+    letterSpacing: "0.02em",
+  },
+  brandCross: { color: "#E2F163", fontWeight: 900, fontSize: 40, lineHeight: 1 },
+  brandTime: {
+    color: "#E2F163",
+    fontWeight: 800,
+    fontStyle: "italic",
+    fontSize: 40,
+    lineHeight: 1,
+    marginLeft: 2,
+  },
+
+  navItems: { display: "flex", flexDirection: "column", gap: 12 },
+
+  navItem: {
+    padding: "14px 16px",
+    borderRadius: 14,
+    fontWeight: 800,
+    fontSize: 15,
+    cursor: "pointer",
+    userSelect: "none",
+    transition: "all .15s ease",
+  },
+
+  navItemIdle: {
+    border: "1px solid rgba(255,255,255,.12)",
+    background: "rgba(0,0,0,.10)",
+    color: "rgba(255,255,255,.82)",
+  },
+
+  navItemActive: {
+    border: "1px solid rgba(226,241,99,.45)",
+    background: "rgba(226,241,99,.12)",
+    color: "#E2F163",
+  },
+
+  logout: {
+    marginTop: "auto",
+    color: "rgba(255,255,255,.82)",
+    textDecoration: "none",
+    fontSize: 14,
+    paddingTop: 18,
+    opacity: 0.9,
+  },
+
+  content: {
+    padding: 40,
+    display: "flex",
+    flexDirection: "column",
+    gap: 18,
+    height: "100vh",
+    overflow: "hidden",
+    minHeight: 0,
+    background:
+      "radial-gradient(1200px 600px at 20% 0%, rgba(255,255,255,.06) 0%, rgba(255,255,255,0) 50%)",
+  },
+
+  headerCard: {
+    background: "#2A2A2A",
+    border: "1px solid rgba(255,255,255,.08)",
+    borderRadius: 18,
+    padding: "20px 22px",
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    boxShadow: "0 14px 34px rgba(0,0,0,.25)",
+    flexShrink: 0,
+  },
+
+  hello: { color: "rgba(255,255,255,.92)", fontWeight: 900, fontSize: 28 },
+  subtitle: { marginTop: 6, opacity: 0.85, fontSize: 13 },
+
+  badge: {
+    border: "1px solid rgba(226,241,99,.35)",
+    background: "rgba(226,241,99,.10)",
+    padding: "10px 14px",
+    borderRadius: 999,
+    fontSize: 13,
+    color: "rgba(255,255,255,.92)",
+  },
+
+  listWrap: {
+    flex: 1,
+    overflowY: "auto",
+    minHeight: 0,
+    paddingRight: 10,
+  },
+
+  list: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 14,
+    maxWidth: 900,
+    paddingBottom: 24,
+  },
+
+  card: {
+    background: "#232323",
+    border: "1px solid rgba(255,255,255,.08)",
+    borderRadius: 16,
+    padding: "18px 20px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    boxShadow: "0 12px 28px rgba(0,0,0,.22)",
+    transition: "all .15s ease",
+    cursor: "pointer",
+    flexShrink: 0,
+  },
+
+  cardHover: {
+    background: "#2D2D2D",
+    border: "1px solid rgba(226,241,99,.18)",
+    boxShadow: "0 16px 36px rgba(0,0,0,.32)",
+    transform: "translateY(-1px)",
+  },
+
+  cardReserved: {
+    border: "1px solid rgba(226,241,99,.40)",
+    background: "rgba(226,241,99,.08)",
+  },
+
+  cardLeft: { display: "flex", alignItems: "center", gap: 20 },
+
+  time: { color: "#E2F163", fontWeight: 900, width: 90, fontSize: 22 },
+
+  modality: { fontWeight: 850, color: "rgba(255,255,255,.92)", fontSize: 18 },
+
+  coach: { fontSize: 13, color: "rgba(255,255,255,.62)", marginTop: 2 },
+
+  reservedTag: {
+    marginTop: 10,
+    display: "inline-block",
+    fontSize: 11,
+    fontWeight: 900,
+    letterSpacing: "0.06em",
+    color: "#111",
+    background: "#E2F163",
+    padding: "5px 12px",
+    borderRadius: 999,
+    width: "fit-content",
+  },
+
+  cardRight: { display: "flex", alignItems: "center", gap: 14 },
+
+  spots: { fontSize: 14, color: "rgba(255,255,255,.78)", fontWeight: 700 },
+
+  userPill: {
+    width: 34,
+    height: 34,
+    borderRadius: 999,
+    border: "1px solid rgba(226,241,99,.30)",
+    background: "rgba(226,241,99,.10)",
+    display: "grid",
+    placeItems: "center",
+  },
+
+  userIcon: { width: 18, height: 18, opacity: 0.95 },
+
+  modalOverlay: {
+    position: "fixed",
+    inset: 0,
+    background: "rgba(0,0,0,.55)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 18,
+    zIndex: 999,
+  },
+
+  modalCard: {
+    width: "min(520px, 92vw)",
+    background: "#2A2A2A",
+    border: "1px solid rgba(255,255,255,.10)",
+    borderRadius: 18,
+    boxShadow: "0 22px 70px rgba(0,0,0,.55)",
+    overflow: "hidden",
+  },
+
+  modalHeader: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: "16px 18px",
+    borderBottom: "1px solid rgba(255,255,255,.08)",
+  },
+
+  modalTitle: { fontWeight: 900, fontSize: 16, color: "rgba(255,255,255,.92)" },
+
+  modalClose: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    border: "1px solid rgba(255,255,255,.10)",
+    background: "rgba(0,0,0,.20)",
+    color: "rgba(255,255,255,.85)",
+    cursor: "pointer",
+    fontSize: 16,
+  },
+
+  modalBody: { padding: "16px 18px" },
+
+  modalLine: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: "10px 0",
+    borderBottom: "1px solid rgba(255,255,255,.06)",
+  },
+
+  modalLabel: { color: "rgba(255,255,255,.65)", fontSize: 13, fontWeight: 700 },
+
+  modalValue: { color: "rgba(255,255,255,.92)", fontSize: 14, fontWeight: 800 },
+
+  modalHint: {
+    marginTop: 14,
+    color: "rgba(255,255,255,.72)",
+    fontSize: 13,
+    lineHeight: 1.4,
+  },
+
+  modalActions: {
+    display: "flex",
+    justifyContent: "flex-end",
+    gap: 10,
+    padding: "16px 18px",
+    borderTop: "1px solid rgba(255,255,255,.08)",
+  },
+
+  btnGhost: {
+    height: 42,
+    padding: "0 14px",
+    borderRadius: 12,
+    border: "1px solid rgba(255,255,255,.14)",
+    background: "rgba(0,0,0,.14)",
+    color: "rgba(255,255,255,.86)",
+    fontWeight: 900,
+    cursor: "pointer",
+  },
+
+  btnPrimary: {
+    height: 42,
+    padding: "0 16px",
+    borderRadius: 12,
+    border: "none",
+    background: "#E2F163",
+    color: "#111",
+    fontWeight: 900,
+    cursor: "pointer",
+  },
+
+  btnDanger: {
+    height: 42,
+    padding: "0 16px",
+    borderRadius: 12,
+    border: "1px solid rgba(226,241,99,.35)",
+    background: "rgba(226,241,99,.10)",
+    color: "#E2F163",
+    fontWeight: 900,
+    cursor: "pointer",
+  },
+};
