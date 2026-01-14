@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
+import { Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { PagamentoStatus } from "@prisma/client";
 
@@ -25,7 +25,7 @@ export class PagamentosService {
       data: {
         assinaturaId,
         provedor: "PIX_FAKE",
-        valorCentavos: 19990, 
+        valorCentavos: 19990,
         status: PagamentoStatus.AGUARDANDO,
         txid,
         copiaECola,
@@ -39,6 +39,13 @@ export class PagamentosService {
       },
     });
 
-    return pagamento;
+    
+    return {
+      id: pagamento.id.toString(),
+      status: pagamento.status,
+      txid: pagamento.txid,
+      copiaECola: pagamento.copiaECola,
+      criadoEm: pagamento.criadoEm,
+    };
   }
 }
