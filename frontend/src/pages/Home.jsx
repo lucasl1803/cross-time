@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import userIcon from "../assets/Usuarioicone.png";
 
 const mockSessoes = [
@@ -13,15 +14,17 @@ const mockSessoes = [
 
 export default function Home() {
   const sessoes = useMemo(() => mockSessoes, []);
+  const navigate = useNavigate();
 
-  const [reservadas, setReservadas] = useState([]); 
+ 
+  const [reservas, setReservas] = useState({});
   const [hoverId, setHoverId] = useState(null);
 
-  
+ 
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedSessao, setSelectedSessao] = useState(null);
 
-  const qtdReservasHoje = reservadas.length;
+  const qtdReservasHoje = Object.keys(reservas).length;
 
   function openModal(sessao) {
     setSelectedSessao(sessao);
@@ -36,10 +39,11 @@ export default function Home() {
   function confirmarReserva() {
     if (!selectedSessao) return;
 
-    setReservadas((prev) => {
-      if (prev.includes(selectedSessao.id)) return prev;
-      return [...prev, selectedSessao.id];
-    });
+    
+    setReservas((prev) => ({
+      ...prev,
+      [selectedSessao.id]: "PENDENTE",
+    }));
 
     closeModal();
   }
@@ -47,11 +51,29 @@ export default function Home() {
   function cancelarReserva() {
     if (!selectedSessao) return;
 
-    setReservadas((prev) => prev.filter((id) => id !== selectedSessao.id));
+    setReservas((prev) => {
+      const copy = { ...prev };
+      delete copy[selectedSessao.id];
+      return copy;
+    });
+
     closeModal();
   }
 
-  const isSelectedReserved = selectedSessao ? reservadas.includes(selectedSessao.id) : false;
+  
+  function marcarComoConfirmado() {
+    if (!selectedSessao) return;
+
+    setReservas((prev) => ({
+      ...prev,
+      [selectedSessao.id]: "CONFIRMADO",
+    }));
+
+    closeModal();
+  }
+
+  const selectedStatus = selectedSessao ? reservas[selectedSessao.id] : undefined;
+  const isSelectedReserved = Boolean(selectedStatus);
 
   return (
     <div style={s.page}>
@@ -88,7 +110,10 @@ export default function Home() {
           <div style={s.list}>
             {sessoes.map((sessao) => {
               const isHover = hoverId === sessao.id;
-              const isReserved = reservadas.includes(sessao.id);
+
+              const status = reservas[sessao.id]; 
+              const isPending = status === "PENDENTE";
+              const isConfirmed = status === "CONFIRMADO";
 
               const inscritos = Number(sessao.inscritos ?? 0);
               const capacidade = Number(sessao.capacidade ?? 0);
@@ -102,7 +127,8 @@ export default function Home() {
                   style={{
                     ...s.card,
                     ...(isHover ? s.cardHover : null),
-                    ...(isReserved ? s.cardReserved : null),
+                    ...(isPending ? s.cardPending : null),
+                    ...(isConfirmed ? s.cardConfirmed : null),
                   }}
                   title="Clique para ver opções"
                   role="button"
@@ -113,7 +139,30 @@ export default function Home() {
                     <div>
                       <div style={s.modality}>{sessao.modalidade}</div>
                       <div style={s.coach}>{sessao.coach}</div>
-                      {isReserved && <div style={s.reservedTag}>Reservado</div>}
+
+                      
+                      {isPending && (
+                        <div style={s.tagRow}>
+                          <div style={s.tagPending}>Pendente</div>
+                          <button
+                            style={s.payBtn}
+                            onClick={(e) => {
+                              e.stopPropagation(); 
+                              navigate("/pagamento", {
+                                state: {
+                                  sessaoId: sessao.id,
+                                  horario: sessao.horario,
+                                  modalidade: sessao.modalidade,
+                                },
+                              });
+                            }}
+                          >
+                            Pagar
+                          </button>
+                        </div>
+                      )}
+
+                      {isConfirmed && <div style={s.tagConfirmed}>Confirmado</div>}
                     </div>
                   </div>
 
@@ -143,7 +192,7 @@ export default function Home() {
           >
             <div style={s.modalHeader}>
               <div style={s.modalTitle}>
-                {isSelectedReserved ? "Gerenciar reserva" : "Confirmar reserva"}
+                {selectedStatus ? "Gerenciar reserva" : "Confirmar reserva"}
               </div>
               <button style={s.modalClose} onClick={closeModal} aria-label="Fechar">
                 ✕
@@ -167,9 +216,11 @@ export default function Home() {
               </div>
 
               <div style={s.modalHint}>
-                {isSelectedReserved
-                  ? "Você já reservou esta aula. Deseja cancelar?"
-                  : "Ao confirmar, esta aula será adicionada em Minhas reservas."}
+                {selectedStatus
+                  ? `Status atual: ${
+                      selectedStatus === "PENDENTE" ? "Pagamento pendente" : "Pagamento confirmado"
+                    }`
+                  : "Confirme a reserva para seguir para o pagamento e garantir sua vaga na aula."}
               </div>
             </div>
 
@@ -178,10 +229,19 @@ export default function Home() {
                 Voltar
               </button>
 
-              {isSelectedReserved ? (
-                <button style={s.btnDanger} onClick={cancelarReserva}>
-                  Cancelar reserva
-                </button>
+              {selectedStatus ? (
+                <>
+                  <button style={s.btnDanger} onClick={cancelarReserva}>
+                    Cancelar reserva
+                  </button>
+
+                 
+                  {selectedStatus === "PENDENTE" && (
+                    <button style={s.btnPrimary} onClick={marcarComoConfirmado}>
+                      Marcar como confirmado
+                    </button>
+                  )}
+                </>
               ) : (
                 <button style={s.btnPrimary} onClick={confirmarReserva}>
                   Confirmar
@@ -335,9 +395,16 @@ const s = {
     transform: "translateY(-1px)",
   },
 
-  cardReserved: {
+  
+  cardPending: {
     border: "1px solid rgba(226,241,99,.40)",
     background: "rgba(226,241,99,.08)",
+  },
+
+ 
+  cardConfirmed: {
+    border: "1px solid rgba(60,255,127,.35)",
+    background: "rgba(60,255,127,.08)",
   },
 
   cardLeft: { display: "flex", alignItems: "center", gap: 20 },
@@ -348,8 +415,9 @@ const s = {
 
   coach: { fontSize: 13, color: "rgba(255,255,255,.62)", marginTop: 2 },
 
-  reservedTag: {
-    marginTop: 10,
+  tagRow: { marginTop: 10, display: "flex", alignItems: "center", gap: 10 },
+
+  tagPending: {
     display: "inline-block",
     fontSize: 11,
     fontWeight: 900,
@@ -359,6 +427,31 @@ const s = {
     padding: "5px 12px",
     borderRadius: 999,
     width: "fit-content",
+  },
+
+  tagConfirmed: {
+    marginTop: 10,
+    display: "inline-block",
+    fontSize: 11,
+    fontWeight: 900,
+    letterSpacing: "0.06em",
+    color: "#0B1413",
+    background: "#3CFF7F",
+    padding: "5px 12px",
+    borderRadius: 999,
+    width: "fit-content",
+  },
+
+  payBtn: {
+    height: 30,
+    padding: "0 12px",
+    borderRadius: 999,
+    border: "none",
+    background: "#3CFF7F",
+    color: "#0B1413",
+    fontWeight: 900,
+    fontSize: 12,
+    cursor: "pointer",
   },
 
   cardRight: { display: "flex", alignItems: "center", gap: 14 },
@@ -389,7 +482,7 @@ const s = {
   },
 
   modalCard: {
-    width: "min(520px, 92vw)",
+    width: "min(560px, 92vw)",
     background: "#2A2A2A",
     border: "1px solid rgba(255,255,255,.10)",
     borderRadius: 18,
@@ -445,6 +538,7 @@ const s = {
     gap: 10,
     padding: "16px 18px",
     borderTop: "1px solid rgba(255,255,255,.08)",
+    flexWrap: "wrap",
   },
 
   btnGhost: {
