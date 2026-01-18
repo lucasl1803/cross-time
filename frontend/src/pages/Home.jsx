@@ -12,15 +12,38 @@ const mockSessoes = [
   { id: 7, horario: "18:30", modalidade: "Crossfit", coach: "Coach Ana Luiza", inscritos: 0, capacidade: 0 },
 ];
 
+
+const STORAGE_AULAS = "box:aulas";
+const STORAGE_BOX_NAME = "box:nome";
+
+function loadJSON(key, fallback) {
+  try {
+    const raw = localStorage.getItem(key);
+    const parsed = raw ? JSON.parse(raw) : null;
+    return parsed ?? fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 export default function Home() {
-  const sessoes = useMemo(() => mockSessoes, []);
   const navigate = useNavigate();
 
- 
+  // role + box name
+  const role = localStorage.getItem("role") || "ALUNO";
+  const isCoach = role === "COACH";
+  const boxNome = localStorage.getItem(STORAGE_BOX_NAME) || "Sua Box";
+
+  
+  const sessoes = useMemo(() => {
+    const aulasDaBox = loadJSON(STORAGE_AULAS, []);
+    if (Array.isArray(aulasDaBox) && aulasDaBox.length > 0) return aulasDaBox;
+    return mockSessoes;
+  }, []);
+
   const [reservas, setReservas] = useState({});
   const [hoverId, setHoverId] = useState(null);
 
- 
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedSessao, setSelectedSessao] = useState(null);
 
@@ -39,7 +62,6 @@ export default function Home() {
   function confirmarReserva() {
     if (!selectedSessao) return;
 
-    
     setReservas((prev) => ({
       ...prev,
       [selectedSessao.id]: "PENDENTE",
@@ -60,7 +82,6 @@ export default function Home() {
     closeModal();
   }
 
-  
   function marcarComoConfirmado() {
     if (!selectedSessao) return;
 
@@ -73,7 +94,6 @@ export default function Home() {
   }
 
   const selectedStatus = selectedSessao ? reservas[selectedSessao.id] : undefined;
-  const isSelectedReserved = Boolean(selectedStatus);
 
   return (
     <div style={s.page}>
@@ -85,8 +105,25 @@ export default function Home() {
 
         <div style={s.navItems}>
           <div style={{ ...s.navItem, ...s.navItemActive }}>Home</div>
-          <div style={{ ...s.navItem, ...s.navItemIdle }}>Minhas reservas</div>
+
+          {!isCoach && (
+            <div style={{ ...s.navItem, ...s.navItemIdle }}>
+              Minhas reservas
+            </div>
+          )}
+
           <div style={{ ...s.navItem, ...s.navItemIdle }}>Perfil</div>
+
+          {isCoach && (
+            <div
+              style={{ ...s.navItem, ...s.navItemIdle }}
+              onClick={() => navigate("/minha-box")}
+              role="button"
+              title="Acessar configurações da sua box"
+            >
+              Minha Box
+            </div>
+          )}
         </div>
 
         <a href="/login" style={s.logout}>
@@ -101,8 +138,18 @@ export default function Home() {
             <div style={s.subtitle}>Vamos realizar o check-in hoje?</div>
           </div>
 
+          
           <div style={s.badge}>
-            Minhas reservas: <strong>{qtdReservasHoje}</strong>
+            <div style={s.badgeTop}>{boxNome}</div>
+            <div style={s.badgeBottom}>
+              {isCoach ? (
+                <span>Modo Coach</span>
+              ) : (
+                <>
+                  Minhas reservas: <strong>{qtdReservasHoje}</strong>
+                </>
+              )}
+            </div>
           </div>
         </section>
 
@@ -111,7 +158,7 @@ export default function Home() {
             {sessoes.map((sessao) => {
               const isHover = hoverId === sessao.id;
 
-              const status = reservas[sessao.id]; 
+              const status = reservas[sessao.id];
               const isPending = status === "PENDENTE";
               const isConfirmed = status === "CONFIRMADO";
 
@@ -140,14 +187,13 @@ export default function Home() {
                       <div style={s.modality}>{sessao.modalidade}</div>
                       <div style={s.coach}>{sessao.coach}</div>
 
-                      
                       {isPending && (
                         <div style={s.tagRow}>
                           <div style={s.tagPending}>Pendente</div>
                           <button
                             style={s.payBtn}
                             onClick={(e) => {
-                              e.stopPropagation(); 
+                              e.stopPropagation();
                               navigate("/pagamento", {
                                 state: {
                                   sessaoId: sessao.id,
@@ -162,7 +208,9 @@ export default function Home() {
                         </div>
                       )}
 
-                      {isConfirmed && <div style={s.tagConfirmed}>Confirmado</div>}
+                      {isConfirmed && (
+                        <div style={s.tagConfirmed}>Confirmado</div>
+                      )}
                     </div>
                   </div>
 
@@ -194,7 +242,11 @@ export default function Home() {
               <div style={s.modalTitle}>
                 {selectedStatus ? "Gerenciar reserva" : "Confirmar reserva"}
               </div>
-              <button style={s.modalClose} onClick={closeModal} aria-label="Fechar">
+              <button
+                style={s.modalClose}
+                onClick={closeModal}
+                aria-label="Fechar"
+              >
                 ✕
               </button>
             </div>
@@ -218,7 +270,9 @@ export default function Home() {
               <div style={s.modalHint}>
                 {selectedStatus
                   ? `Status atual: ${
-                      selectedStatus === "PENDENTE" ? "Pagamento pendente" : "Pagamento confirmado"
+                      selectedStatus === "PENDENTE"
+                        ? "Pagamento pendente"
+                        : "Pagamento confirmado"
                     }`
                   : "Confirme a reserva para seguir para o pagamento e garantir sua vaga na aula."}
               </div>
@@ -235,7 +289,6 @@ export default function Home() {
                     Cancelar reserva
                   </button>
 
-                 
                   {selectedStatus === "PENDENTE" && (
                     <button style={s.btnPrimary} onClick={marcarComoConfirmado}>
                       Marcar como confirmado
@@ -345,6 +398,7 @@ const s = {
     alignItems: "center",
     boxShadow: "0 14px 34px rgba(0,0,0,.25)",
     flexShrink: 0,
+    gap: 16,
   },
 
   hello: { color: "rgba(255,255,255,.92)", fontWeight: 900, fontSize: 28 },
@@ -354,9 +408,19 @@ const s = {
     border: "1px solid rgba(226,241,99,.35)",
     background: "rgba(226,241,99,.10)",
     padding: "10px 14px",
-    borderRadius: 999,
+    borderRadius: 14,
     fontSize: 13,
     color: "rgba(255,255,255,.92)",
+    minWidth: 180,
+    textAlign: "right",
+  },
+  badgeTop: {
+    fontWeight: 900,
+    color: "#E2F163",
+    marginBottom: 4,
+  },
+  badgeBottom: {
+    opacity: 0.92,
   },
 
   listWrap: {
@@ -395,13 +459,11 @@ const s = {
     transform: "translateY(-1px)",
   },
 
-  
   cardPending: {
     border: "1px solid rgba(226,241,99,.40)",
     background: "rgba(226,241,99,.08)",
   },
 
- 
   cardConfirmed: {
     border: "1px solid rgba(60,255,127,.35)",
     background: "rgba(60,255,127,.08)",
