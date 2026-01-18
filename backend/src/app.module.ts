@@ -1,4 +1,5 @@
 import { Module } from "@nestjs/common";
+import { ConfigModule } from "@nestjs/config";
 
 import { HealthModule } from "./health/health.module";
 import { WodsModule } from "./wods/wods.module";
@@ -8,6 +9,7 @@ import { PagamentosModule } from "./pagamentos/pagamentos.module";
 
 @Module({
   imports: [
+    ConfigModule.forRoot({ isGlobal: true }), 
     HealthModule,
     WodsModule,
     SessoesModule,
