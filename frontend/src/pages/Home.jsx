@@ -1,6 +1,8 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import userIcon from "../assets/Usuarioicone.png";
+import { listarSessoes } from "../services/sessoes";
+
 
 const STORAGE = {
   BOX_NAME: "box:nome",
@@ -40,6 +42,42 @@ export default function Home() {
   const isCoach = role === "COACH";
 
   const boxNome = localStorage.getItem(STORAGE.BOX_NAME) || "Sua Box";
+
+  const [sessoesApi, setSessoesApi] = useState([]);
+
+  useEffect(() => {
+  async function carregarSessoes() {
+    try {
+      const data = await listarSessoes();
+
+      const mapped = data.map((x) => {
+        const horario = new Date(x.horaInicio).toLocaleTimeString("pt-BR", {
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+
+        return {
+          id: x.id,
+          horario,
+          modalidade: x.wod?.titulo || "Aula",
+          coach: "",
+          inscritos: 0,
+          capacidade: x.capacidade ?? 0,
+          duracaoMin: x.duracaoMinutos,
+          status: x.status,
+        };
+      });
+
+      setSessoesApi(mapped);
+    } catch (err) {
+      console.error("Erro ao carregar sessoes:", err);
+    }
+  }
+
+  carregarSessoes();
+}, []);
+
+
 
   const sessoes = useMemo(() => {
     const aulasDaBox = loadArray(STORAGE.BOX_AULAS);
@@ -100,6 +138,7 @@ export default function Home() {
   }
 
   const selectedStatus = selectedSessao ? reservas[selectedSessao.id] : undefined;
+  const sessoesFinal = sessoesApi.length > 0 ? sessoesApi : sessoes;
 
   return (
     <div style={s.page}>
@@ -158,7 +197,8 @@ export default function Home() {
 
         <section style={s.listWrap}>
           <div style={s.list}>
-            {sessoes.map((sessao) => {
+            {sessoesFinal.map((sessao) => {
+
               const isHover = hoverId === sessao.id;
 
               const status = reservas[sessao.id];
@@ -167,6 +207,7 @@ export default function Home() {
 
               const inscritos = Number(sessao.inscritos ?? 0);
               const capacidade = Number(sessao.capacidade ?? 0);
+             
 
               return (
                 <div
