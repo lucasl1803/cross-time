@@ -110,6 +110,31 @@ export class CheckinsService {
       return updated;
     });
   }
+  async listByAluno(alunoIdNum: number) {
+    const alunoId = this.toBigIntId(alunoIdNum);
+
+    return this.prisma.reserva.findMany({
+      where: { alunoId },
+      orderBy: { criadoEm: "desc" },
+      select: {
+        id: true,
+        status: true,
+        criadoEm: true,
+        canceladoEm: true,
+        sessao: {
+          select: {
+            id: true,
+            dataAula: true,
+            horaInicio: true,
+            duracaoMinutos: true,
+            capacidade: true,
+            status: true,
+            wod: { select: { id: true, titulo: true } },
+          },
+        },
+      },
+    });
+  }
 
   private buildStartDateTime(dataAula: Date, horaInicio: Date): Date {
     const start = new Date(dataAula);
@@ -117,4 +142,5 @@ export class CheckinsService {
     start.setHours(time.getHours(), time.getMinutes(), time.getSeconds(), time.getMilliseconds());
     return start;
   }
+  
 }
