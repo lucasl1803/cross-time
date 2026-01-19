@@ -13,7 +13,9 @@ export default function CriarConta() {
     email: "",
     senha: "",
     confirmarSenha: "",
+    tipo: "ALUNO",
   });
+
   const [error, setError] = useState("");
 
   const canSubmit = useMemo(() => {
@@ -44,13 +46,14 @@ export default function CriarConta() {
     }
 
     
+    localStorage.setItem("role", form.tipo);
+
     navigate("/home");
   }
 
   return (
     <div style={s.page}>
       <div style={s.layout}>
-   
         <aside style={s.left}>
           <img src={logo} alt="CrossTime" style={s.leftLogo} />
         </aside>
@@ -61,7 +64,6 @@ export default function CriarConta() {
             <p style={s.subtitle}>Preencha seus dados</p>
 
             <form onSubmit={handleSubmit} style={s.form}>
-             
               <div style={s.inputWrap}>
                 <input
                   style={s.input}
@@ -74,7 +76,6 @@ export default function CriarConta() {
                 />
               </div>
 
-              
               <div style={s.inputWrap}>
                 <img src={iconEmail} alt="" style={s.icon} />
                 <input
@@ -88,7 +89,6 @@ export default function CriarConta() {
                 />
               </div>
 
-              
               <div style={s.inputWrap}>
                 <img src={iconLock} alt="" style={s.icon} />
                 <input
@@ -102,7 +102,6 @@ export default function CriarConta() {
                 />
               </div>
 
-              
               <div style={s.inputWrap}>
                 <img src={iconLock} alt="" style={s.icon} />
                 <input
@@ -117,6 +116,35 @@ export default function CriarConta() {
               </div>
 
               {error ? <div style={s.error}>{error}</div> : null}
+
+              
+              <div style={s.roleWrap}>
+                <span style={s.roleLabel}>Tipo de conta</span>
+
+                <div style={s.roleOptions}>
+                  <label style={s.roleOption}>
+                    <input
+                      type="radio"
+                      name="tipo"
+                      value="ALUNO"
+                      checked={form.tipo === "ALUNO"}
+                      onChange={handleChange}
+                    />
+                    Aluno
+                  </label>
+
+                  <label style={s.roleOption}>
+                    <input
+                      type="radio"
+                      name="tipo"
+                      value="COACH"
+                      checked={form.tipo === "COACH"}
+                      onChange={handleChange}
+                    />
+                    Coach
+                  </label>
+                </div>
+              </div>
 
               <button
                 type="submit"
@@ -141,7 +169,6 @@ export default function CriarConta() {
 }
 
 const s = {
-  
   page: {
     width: "100vw",
     height: "100vh",
@@ -260,4 +287,33 @@ const s = {
   },
 
   link: { color: "#E2F163", fontWeight: 800, textDecoration: "none" },
+
+  roleWrap: {
+    width: "100%",
+    marginTop: 6,
+    textAlign: "left",
+  },
+
+  roleLabel: {
+    fontSize: 13,
+    color: "rgba(255,255,255,.8)",
+    fontWeight: 700,
+    marginBottom: 6,
+    display: "block",
+  },
+
+  roleOptions: {
+    display: "flex",
+    gap: 20,
+    paddingLeft: 6,
+  },
+
+  roleOption: {
+    display: "flex",
+    alignItems: "center",
+    gap: 6,
+    fontSize: 14,
+    color: "rgba(255,255,255,.9)",
+    cursor: "pointer",
+  },
 };

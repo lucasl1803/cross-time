@@ -2,6 +2,12 @@ import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import userIcon from "../assets/Usuarioicone.png";
 
+const STORAGE = {
+  BOX_NAME: "box:nome",
+  BOX_AULAS: "box:aulas",
+  ROLE: "role",
+};
+
 const mockSessoes = [
   { id: 1, horario: "06:00", modalidade: "Crossfit", coach: "Coach Flávia", inscritos: 0, capacidade: 0 },
   { id: 2, horario: "07:00", modalidade: "Crossfit", coach: "Coach Flávia", inscritos: 0, capacidade: 0 },
@@ -12,15 +18,38 @@ const mockSessoes = [
   { id: 7, horario: "18:30", modalidade: "Crossfit", coach: "Coach Ana Luiza", inscritos: 0, capacidade: 0 },
 ];
 
+function safeParseJSON(value, fallback) {
+  try {
+    const parsed = JSON.parse(value);
+    return parsed ?? fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function loadArray(key) {
+  const raw = localStorage.getItem(key);
+  const parsed = safeParseJSON(raw, []);
+  return Array.isArray(parsed) ? parsed : [];
+}
+
 export default function Home() {
-  const sessoes = useMemo(() => mockSessoes, []);
   const navigate = useNavigate();
 
- 
+  const role = localStorage.getItem(STORAGE.ROLE) || "ALUNO";
+  const isCoach = role === "COACH";
+
+  const boxNome = localStorage.getItem(STORAGE.BOX_NAME) || "Sua Box";
+
+  const sessoes = useMemo(() => {
+    const aulasDaBox = loadArray(STORAGE.BOX_AULAS);
+    if (aulasDaBox.length > 0) return aulasDaBox;
+    return mockSessoes;
+  }, []);
+
   const [reservas, setReservas] = useState({});
   const [hoverId, setHoverId] = useState(null);
 
- 
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedSessao, setSelectedSessao] = useState(null);
 
@@ -39,7 +68,6 @@ export default function Home() {
   function confirmarReserva() {
     if (!selectedSessao) return;
 
-    
     setReservas((prev) => ({
       ...prev,
       [selectedSessao.id]: "PENDENTE",
@@ -60,7 +88,6 @@ export default function Home() {
     closeModal();
   }
 
-  
   function marcarComoConfirmado() {
     if (!selectedSessao) return;
 
@@ -73,7 +100,6 @@ export default function Home() {
   }
 
   const selectedStatus = selectedSessao ? reservas[selectedSessao.id] : undefined;
-  const isSelectedReserved = Boolean(selectedStatus);
 
   return (
     <div style={s.page}>
@@ -85,13 +111,30 @@ export default function Home() {
 
         <div style={s.navItems}>
           <div style={{ ...s.navItem, ...s.navItemActive }}>Home</div>
-          <div style={{ ...s.navItem, ...s.navItemIdle }}>Minhas reservas</div>
-          <div style={{ ...s.navItem, ...s.navItemIdle }}>Perfil</div>
+
+          {!isCoach && (
+            <div style={{ ...s.navItem, ...s.navItemIdle }}>Minhas reservas</div>
+          )}
+
+          {isCoach && (
+            <div
+              style={{ ...s.navItem, ...s.navItemIdle }}
+              onClick={() => navigate("/minha-box")}
+              role="button"
+              title="Gerenciar sua Box"
+            >
+              Minha Box
+            </div>
+          )}
         </div>
 
-        <a href="/login" style={s.logout}>
-          Sair
-        </a>
+        <div style={s.bottom}>
+          <a href="/login" style={s.logout}>
+            Sair
+          </a>
+
+          <div style={s.modePill}>{isCoach ? "Modo Coach" : "Modo Aluno"}</div>
+        </div>
       </aside>
 
       <main style={s.content}>
@@ -101,9 +144,16 @@ export default function Home() {
             <div style={s.subtitle}>Vamos realizar o check-in hoje?</div>
           </div>
 
-          <div style={s.badge}>
-            Minhas reservas: <strong>{qtdReservasHoje}</strong>
-          </div>
+       <div style={s.headerRight}>
+  <div style={s.boxName}>{boxNome}</div>
+
+  {!isCoach ? (
+    <div style={s.reservasText}>
+      Minhas reservas: <strong>{qtdReservasHoje}</strong>
+    </div>
+  ) : null}
+</div>
+
         </section>
 
         <section style={s.listWrap}>
@@ -111,7 +161,7 @@ export default function Home() {
             {sessoes.map((sessao) => {
               const isHover = hoverId === sessao.id;
 
-              const status = reservas[sessao.id]; 
+              const status = reservas[sessao.id];
               const isPending = status === "PENDENTE";
               const isConfirmed = status === "CONFIRMADO";
 
@@ -138,16 +188,19 @@ export default function Home() {
 
                     <div>
                       <div style={s.modality}>{sessao.modalidade}</div>
-                      <div style={s.coach}>{sessao.coach}</div>
+                      <div style={s.coach}>
+  {sessao.coach}
+  {sessao.duracaoMin ? ` • ${sessao.duracaoMin} min` : ""}
+</div>
 
-                      
+
                       {isPending && (
                         <div style={s.tagRow}>
                           <div style={s.tagPending}>Pendente</div>
                           <button
                             style={s.payBtn}
                             onClick={(e) => {
-                              e.stopPropagation(); 
+                              e.stopPropagation();
                               navigate("/pagamento", {
                                 state: {
                                   sessaoId: sessao.id,
@@ -211,9 +264,25 @@ export default function Home() {
               </div>
 
               <div style={s.modalLine}>
-                <span style={s.modalLabel}>Coach</span>
-                <span style={s.modalValue}>{selectedSessao?.coach}</span>
+         <span style={s.modalLabel}>Coach</span>
+         <span style={s.modalValue}>{selectedSessao?.coach}</span>
+                  {selectedSessao?.duracaoMin ? (
+  <div style={s.modalLine}>
+    <span style={s.modalLabel}>Duração</span>
+    <span style={s.modalValue}>{selectedSessao.duracaoMin} min</span>
+  </div>
+) : null}
+
+         
               </div>
+
+              {selectedSessao?.descricao ? (
+           <div style={s.modalDesc}>
+        <span style={s.modalLabel}>Descrição</span>
+     <div style={s.modalDescText}>{selectedSessao.descricao}</div>
+    </div>
+) : null}
+
 
               <div style={s.modalHint}>
                 {selectedStatus
@@ -235,7 +304,6 @@ export default function Home() {
                     Cancelar reserva
                   </button>
 
-                 
                   {selectedStatus === "PENDENTE" && (
                     <button style={s.btnPrimary} onClick={marcarComoConfirmado}>
                       Marcar como confirmado
@@ -314,13 +382,31 @@ const s = {
     color: "#E2F163",
   },
 
-  logout: {
+  bottom: {
     marginTop: "auto",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+    paddingTop: 18,
+  },
+
+  logout: {
     color: "rgba(255,255,255,.82)",
     textDecoration: "none",
     fontSize: 14,
-    paddingTop: 18,
     opacity: 0.9,
+  },
+
+  modePill: {
+    border: "1px solid rgba(226,241,99,.35)",
+    background: "rgba(226,241,99,.10)",
+    color: "#E2F163",
+    fontWeight: 900,
+    fontSize: 12,
+    padding: "10px 14px",
+    borderRadius: 12,
+    width: "fit-content",
   },
 
   content: {
@@ -345,19 +431,31 @@ const s = {
     alignItems: "center",
     boxShadow: "0 14px 34px rgba(0,0,0,.25)",
     flexShrink: 0,
+    gap: 16,
   },
 
   hello: { color: "rgba(255,255,255,.92)", fontWeight: 900, fontSize: 28 },
   subtitle: { marginTop: 6, opacity: 0.85, fontSize: 13 },
 
-  badge: {
-    border: "1px solid rgba(226,241,99,.35)",
-    background: "rgba(226,241,99,.10)",
-    padding: "10px 14px",
-    borderRadius: 999,
-    fontSize: 13,
-    color: "rgba(255,255,255,.92)",
-  },
+ headerRight: {
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "flex-end",
+  gap: 6,
+},
+
+boxName: {
+  color: "#E2F163",
+  fontWeight: 900,
+  fontSize: 22,      
+  letterSpacing: "0.02em",
+},
+
+reservasText: {
+  fontSize: 13,
+  opacity: 0.9,
+  color: "rgba(255,255,255,.92)",
+},
 
   listWrap: {
     flex: 1,
@@ -395,13 +493,11 @@ const s = {
     transform: "translateY(-1px)",
   },
 
-  
   cardPending: {
     border: "1px solid rgba(226,241,99,.40)",
     background: "rgba(226,241,99,.08)",
   },
 
- 
   cardConfirmed: {
     border: "1px solid rgba(60,255,127,.35)",
     background: "rgba(60,255,127,.08)",
@@ -520,6 +616,22 @@ const s = {
     padding: "10px 0",
     borderBottom: "1px solid rgba(255,255,255,.06)",
   },
+
+  modalDesc: {
+  padding: "12px 0",
+},
+
+modalDescText: {
+  marginTop: 6,
+  color: "rgba(255,255,255,.86)",
+  fontSize: 13,
+  lineHeight: 1.45,
+  background: "rgba(0,0,0,.14)",
+  border: "1px solid rgba(255,255,255,.06)",
+  borderRadius: 12,
+  padding: "10px 12px",
+},
+
 
   modalLabel: { color: "rgba(255,255,255,.65)", fontSize: 13, fontWeight: 700 },
 
