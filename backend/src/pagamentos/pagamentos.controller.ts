@@ -8,6 +8,7 @@ export class PagamentosController {
 
   @Post("pix")
   criarPix(@Body() dto: CreatePixDto) {
-    return this.service.criarPixFake(dto.assinaturaId);
+    return this.service.criarPixMercadoPago(dto.assinaturaId);
+
   }
 }
