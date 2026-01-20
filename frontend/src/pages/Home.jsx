@@ -151,9 +151,8 @@ export default function Home() {
         <div style={s.navItems}>
           <div style={{ ...s.navItem, ...s.navItemActive }}>Home</div>
 
-          {!isCoach && (
-            <div style={{ ...s.navItem, ...s.navItemIdle }}>Minhas reservas</div>
-          )}
+        
+          
 
           {isCoach && (
             <div
