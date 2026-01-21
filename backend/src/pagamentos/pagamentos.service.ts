@@ -1,8 +1,15 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
-import { PagamentoStatus } from "@prisma/client";
 import { randomUUID } from "crypto";
 import axios from "axios";
+
+const PAGAMENTO_STATUS = {
+  AGUARDANDO: "AGUARDANDO",
+  PAGO: "PAGO",
+  CANCELADO: "CANCELADO",
+} as const;
+
+type PagamentoStatusValue = (typeof PAGAMENTO_STATUS)[keyof typeof PAGAMENTO_STATUS];
 
 @Injectable()
 export class PagamentosService {
@@ -72,7 +79,7 @@ export class PagamentosService {
         assinaturaId: assinaturaIdBigInt,
         provedor: "MERCADO_PAGO_PIX",
         valorCentavos: Math.round(transactionAmount * 100),
-        status: PagamentoStatus.AGUARDANDO,
+        status: PAGAMENTO_STATUS.AGUARDANDO as PagamentoStatusValue as any,
         txid: String(mpPayment.id),
         copiaECola,
       },
@@ -118,7 +125,7 @@ export class PagamentosService {
         assinaturaId,
         provedor: "PIX_FAKE",
         valorCentavos: 19990,
-        status: PagamentoStatus.AGUARDANDO,
+        status: PAGAMENTO_STATUS.AGUARDANDO as PagamentoStatusValue as any,
         txid,
         copiaECola,
       },
@@ -146,14 +153,12 @@ export class PagamentosService {
   async confirmarPagamentoDemo(assinaturaId: number) {
     const assinaturaIdBigInt = BigInt(assinaturaId);
 
-    // (opcional) valida assinatura existe
     const assinatura = await this.prisma.assinatura.findUnique({
       where: { id: assinaturaIdBigInt },
       select: { id: true },
     });
     if (!assinatura) throw new NotFoundException("Assinatura não encontrada.");
 
-    // acha o último pagamento dessa assinatura
     const pagamento = await this.prisma.pagamento.findFirst({
       where: { assinaturaId: assinaturaIdBigInt },
       orderBy: { criadoEm: "desc" },
@@ -164,10 +169,9 @@ export class PagamentosService {
       throw new NotFoundException("Nenhum pagamento encontrado para essa assinatura.");
     }
 
-
     await this.prisma.pagamento.update({
       where: { id: pagamento.id },
-      data: { status: PagamentoStatus.PAGO as any },
+      data: { status: PAGAMENTO_STATUS.PAGO as PagamentoStatusValue as any },
     });
 
     return { ok: true };
