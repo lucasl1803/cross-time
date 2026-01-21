@@ -27,10 +27,8 @@ export class PagamentosService {
    * - txid (id do pagamento no MP)
    */
   async criarPixMercadoPago(assinaturaId: number) {
-    // 0) converter number -> BigInt
     const assinaturaIdBigInt = BigInt(assinaturaId);
 
-    // 1) validar se assinatura existe
     const assinatura = await this.prisma.assinatura.findUnique({
       where: { id: assinaturaIdBigInt },
       select: { id: true },
@@ -38,14 +36,12 @@ export class PagamentosService {
 
     if (!assinatura) throw new NotFoundException("Assinatura não encontrada.");
 
-    // 2) validar token do Mercado Pago
     if (!process.env.MP_ACCESS_TOKEN) {
       throw new Error("Defina MP_ACCESS_TOKEN no .env do backend.");
     }
 
     const transactionAmount = 199.9;
 
-    // 3) criar PIX no Mercado Pago
     const resp = await this.mp.post(
       "/v1/payments",
       {
@@ -71,10 +67,9 @@ export class PagamentosService {
       throw new Error("Mercado Pago não retornou qr_code/qr_code_base64.");
     }
 
-    // 4) salvar pagamento no banco
     const pagamento = await this.prisma.pagamento.create({
       data: {
-        assinaturaId: assinaturaIdBigInt, // ✅ BigInt
+        assinaturaId: assinaturaIdBigInt,
         provedor: "MERCADO_PAGO_PIX",
         valorCentavos: Math.round(transactionAmount * 100),
         status: PagamentoStatus.AGUARDANDO,
@@ -143,5 +138,38 @@ export class PagamentosService {
       copiaECola: pagamento.copiaECola,
       criadoEm: pagamento.criadoEm,
     };
+  }
+
+  /**
+   * ✅ DEMO: confirma pagamento manualmente (pra não travar na tela do PIX)
+   */
+  async confirmarPagamentoDemo(assinaturaId: number) {
+    const assinaturaIdBigInt = BigInt(assinaturaId);
+
+    // (opcional) valida assinatura existe
+    const assinatura = await this.prisma.assinatura.findUnique({
+      where: { id: assinaturaIdBigInt },
+      select: { id: true },
+    });
+    if (!assinatura) throw new NotFoundException("Assinatura não encontrada.");
+
+    // acha o último pagamento dessa assinatura
+    const pagamento = await this.prisma.pagamento.findFirst({
+      where: { assinaturaId: assinaturaIdBigInt },
+      orderBy: { criadoEm: "desc" },
+      select: { id: true },
+    });
+
+    if (!pagamento) {
+      throw new NotFoundException("Nenhum pagamento encontrado para essa assinatura.");
+    }
+
+
+    await this.prisma.pagamento.update({
+      where: { id: pagamento.id },
+      data: { status: PagamentoStatus.PAGO as any },
+    });
+
+    return { ok: true };
   }
 }
