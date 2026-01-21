@@ -3,12 +3,14 @@ import { useNavigate } from "react-router-dom";
 import userIcon from "../assets/Usuarioicone.png";
 import { listarSessoes } from "../services/sessoes";
 
-
 const STORAGE = {
   BOX_NAME: "box:nome",
   BOX_AULAS: "box:aulas",
   ROLE: "role",
 };
+
+// ✅ HOTFIX HOJE: ID da assinatura que existe no seu Prisma Studio
+const ASSINATURA_DEMO_ID = 1;
 
 const mockSessoes = [
   { id: 1, horario: "06:00", modalidade: "Crossfit", coach: "Coach Flávia", inscritos: 0, capacidade: 0 },
@@ -46,38 +48,36 @@ export default function Home() {
   const [sessoesApi, setSessoesApi] = useState([]);
 
   useEffect(() => {
-  async function carregarSessoes() {
-    try {
-      const data = await listarSessoes();
+    async function carregarSessoes() {
+      try {
+        const data = await listarSessoes();
 
-      const mapped = data.map((x) => {
-        const horario = new Date(x.horaInicio).toLocaleTimeString("pt-BR", {
-          hour: "2-digit",
-          minute: "2-digit",
+        const mapped = data.map((x) => {
+          const horario = new Date(x.horaInicio).toLocaleTimeString("pt-BR", {
+            hour: "2-digit",
+            minute: "2-digit",
+          });
+
+          return {
+            id: x.id,
+            horario,
+            modalidade: x.wod?.titulo || "Aula",
+            coach: "",
+            inscritos: 0,
+            capacidade: x.capacidade ?? 0,
+            duracaoMin: x.duracaoMinutos,
+            status: x.status,
+          };
         });
 
-        return {
-          id: x.id,
-          horario,
-          modalidade: x.wod?.titulo || "Aula",
-          coach: "",
-          inscritos: 0,
-          capacidade: x.capacidade ?? 0,
-          duracaoMin: x.duracaoMinutos,
-          status: x.status,
-        };
-      });
-
-      setSessoesApi(mapped);
-    } catch (err) {
-      console.error("Erro ao carregar sessoes:", err);
+        setSessoesApi(mapped);
+      } catch (err) {
+        console.error("Erro ao carregar sessoes:", err);
+      }
     }
-  }
 
-  carregarSessoes();
-}, []);
-
-
+    carregarSessoes();
+  }, []);
 
   const sessoes = useMemo(() => {
     const aulasDaBox = loadArray(STORAGE.BOX_AULAS);
@@ -151,9 +151,6 @@ export default function Home() {
         <div style={s.navItems}>
           <div style={{ ...s.navItem, ...s.navItemActive }}>Home</div>
 
-        
-          
-
           {isCoach && (
             <div
               style={{ ...s.navItem, ...s.navItemIdle }}
@@ -182,22 +179,20 @@ export default function Home() {
             <div style={s.subtitle}>Vamos realizar o check-in hoje?</div>
           </div>
 
-       <div style={s.headerRight}>
-  <div style={s.boxName}>{boxNome}</div>
+          <div style={s.headerRight}>
+            <div style={s.boxName}>{boxNome}</div>
 
-  {!isCoach ? (
-    <div style={s.reservasText}>
-      Minhas reservas: <strong>{qtdReservasHoje}</strong>
-    </div>
-  ) : null}
-</div>
-
+            {!isCoach ? (
+              <div style={s.reservasText}>
+                Minhas reservas: <strong>{qtdReservasHoje}</strong>
+              </div>
+            ) : null}
+          </div>
         </section>
 
         <section style={s.listWrap}>
           <div style={s.list}>
             {sessoesFinal.map((sessao) => {
-
               const isHover = hoverId === sessao.id;
 
               const status = reservas[sessao.id];
@@ -206,7 +201,6 @@ export default function Home() {
 
               const inscritos = Number(sessao.inscritos ?? 0);
               const capacidade = Number(sessao.capacidade ?? 0);
-             
 
               return (
                 <div
@@ -229,25 +223,21 @@ export default function Home() {
                     <div>
                       <div style={s.modality}>{sessao.modalidade}</div>
                       <div style={s.coach}>
-  {sessao.coach}
-  {sessao.duracaoMin ? ` • ${sessao.duracaoMin} min` : ""}
-</div>
-
+                        {sessao.coach}
+                        {sessao.duracaoMin ? ` • ${sessao.duracaoMin} min` : ""}
+                      </div>
 
                       {isPending && (
                         <div style={s.tagRow}>
                           <div style={s.tagPending}>Pendente</div>
+
+                          {/* ✅ HOTFIX HOJE: sempre manda ID numérico da assinatura */}
                           <button
                             style={s.payBtn}
                             onClick={(e) => {
                               e.stopPropagation();
-                              navigate("/pagamento", {
-                                state: {
-                                  sessaoId: sessao.id,
-                                  horario: sessao.horario,
-                                  modalidade: sessao.modalidade,
-                                },
-                              });
+                              console.log("DEBUG: indo pro pagamento", { assinaturaId: ASSINATURA_DEMO_ID });
+                              navigate(`/pagamento/${ASSINATURA_DEMO_ID}`);
                             }}
                           >
                             Pagar
@@ -304,25 +294,23 @@ export default function Home() {
               </div>
 
               <div style={s.modalLine}>
-         <span style={s.modalLabel}>Coach</span>
-         <span style={s.modalValue}>{selectedSessao?.coach}</span>
-                  {selectedSessao?.duracaoMin ? (
-  <div style={s.modalLine}>
-    <span style={s.modalLabel}>Duração</span>
-    <span style={s.modalValue}>{selectedSessao.duracaoMin} min</span>
-  </div>
-) : null}
+                <span style={s.modalLabel}>Coach</span>
+                <span style={s.modalValue}>{selectedSessao?.coach}</span>
 
-         
+                {selectedSessao?.duracaoMin ? (
+                  <div style={s.modalLine}>
+                    <span style={s.modalLabel}>Duração</span>
+                    <span style={s.modalValue}>{selectedSessao.duracaoMin} min</span>
+                  </div>
+                ) : null}
               </div>
 
               {selectedSessao?.descricao ? (
-           <div style={s.modalDesc}>
-        <span style={s.modalLabel}>Descrição</span>
-     <div style={s.modalDescText}>{selectedSessao.descricao}</div>
-    </div>
-) : null}
-
+                <div style={s.modalDesc}>
+                  <span style={s.modalLabel}>Descrição</span>
+                  <div style={s.modalDescText}>{selectedSessao.descricao}</div>
+                </div>
+              ) : null}
 
               <div style={s.modalHint}>
                 {selectedStatus
@@ -363,6 +351,7 @@ export default function Home() {
   );
 }
 
+// ⬇️ estilos: mantém os seus (não alterei nada aqui)
 const s = {
   page: {
     height: "100vh",
@@ -373,7 +362,6 @@ const s = {
     gridTemplateColumns: "320px 1fr",
     fontFamily: "Poppins, Inter, Arial, sans-serif",
   },
-
   nav: {
     background: "#003637",
     borderRight: "1px solid rgba(255,255,255,.08)",
@@ -381,7 +369,6 @@ const s = {
     display: "flex",
     flexDirection: "column",
   },
-
   brand: {
     display: "flex",
     alignItems: "baseline",
@@ -397,9 +384,7 @@ const s = {
     lineHeight: 1,
     marginLeft: 2,
   },
-
   navItems: { display: "flex", flexDirection: "column", gap: 12 },
-
   navItem: {
     padding: "14px 16px",
     borderRadius: 14,
@@ -409,19 +394,16 @@ const s = {
     userSelect: "none",
     transition: "all .15s ease",
   },
-
   navItemIdle: {
     border: "1px solid rgba(255,255,255,.12)",
     background: "rgba(0,0,0,.10)",
     color: "rgba(255,255,255,.82)",
   },
-
   navItemActive: {
     border: "1px solid rgba(226,241,99,.45)",
     background: "rgba(226,241,99,.12)",
     color: "#E2F163",
   },
-
   bottom: {
     marginTop: "auto",
     display: "flex",
@@ -430,14 +412,12 @@ const s = {
     gap: 12,
     paddingTop: 18,
   },
-
   logout: {
     color: "rgba(255,255,255,.82)",
     textDecoration: "none",
     fontSize: 14,
     opacity: 0.9,
   },
-
   modePill: {
     border: "1px solid rgba(226,241,99,.35)",
     background: "rgba(226,241,99,.10)",
@@ -448,7 +428,6 @@ const s = {
     borderRadius: 12,
     width: "fit-content",
   },
-
   content: {
     padding: 40,
     display: "flex",
@@ -460,7 +439,6 @@ const s = {
     background:
       "radial-gradient(1200px 600px at 20% 0%, rgba(255,255,255,.06) 0%, rgba(255,255,255,0) 50%)",
   },
-
   headerCard: {
     background: "#2A2A2A",
     border: "1px solid rgba(255,255,255,.08)",
@@ -473,45 +451,13 @@ const s = {
     flexShrink: 0,
     gap: 16,
   },
-
   hello: { color: "rgba(255,255,255,.92)", fontWeight: 900, fontSize: 28 },
   subtitle: { marginTop: 6, opacity: 0.85, fontSize: 13 },
-
- headerRight: {
-  display: "flex",
-  flexDirection: "column",
-  alignItems: "flex-end",
-  gap: 6,
-},
-
-boxName: {
-  color: "#E2F163",
-  fontWeight: 900,
-  fontSize: 22,      
-  letterSpacing: "0.02em",
-},
-
-reservasText: {
-  fontSize: 13,
-  opacity: 0.9,
-  color: "rgba(255,255,255,.92)",
-},
-
-  listWrap: {
-    flex: 1,
-    overflowY: "auto",
-    minHeight: 0,
-    paddingRight: 10,
-  },
-
-  list: {
-    display: "flex",
-    flexDirection: "column",
-    gap: 14,
-    maxWidth: 900,
-    paddingBottom: 24,
-  },
-
+  headerRight: { display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 },
+  boxName: { color: "#E2F163", fontWeight: 900, fontSize: 22, letterSpacing: "0.02em" },
+  reservasText: { fontSize: 13, opacity: 0.9, color: "rgba(255,255,255,.92)" },
+  listWrap: { flex: 1, overflowY: "auto", minHeight: 0, paddingRight: 10 },
+  list: { display: "flex", flexDirection: "column", gap: 14, maxWidth: 900, paddingBottom: 24 },
   card: {
     background: "#232323",
     border: "1px solid rgba(255,255,255,.08)",
@@ -525,34 +471,19 @@ reservasText: {
     cursor: "pointer",
     flexShrink: 0,
   },
-
   cardHover: {
     background: "#2D2D2D",
     border: "1px solid rgba(226,241,99,.18)",
     boxShadow: "0 16px 36px rgba(0,0,0,.32)",
     transform: "translateY(-1px)",
   },
-
-  cardPending: {
-    border: "1px solid rgba(226,241,99,.40)",
-    background: "rgba(226,241,99,.08)",
-  },
-
-  cardConfirmed: {
-    border: "1px solid rgba(60,255,127,.35)",
-    background: "rgba(60,255,127,.08)",
-  },
-
+  cardPending: { border: "1px solid rgba(226,241,99,.40)", background: "rgba(226,241,99,.08)" },
+  cardConfirmed: { border: "1px solid rgba(60,255,127,.35)", background: "rgba(60,255,127,.08)" },
   cardLeft: { display: "flex", alignItems: "center", gap: 20 },
-
   time: { color: "#E2F163", fontWeight: 900, width: 90, fontSize: 22 },
-
   modality: { fontWeight: 850, color: "rgba(255,255,255,.92)", fontSize: 18 },
-
   coach: { fontSize: 13, color: "rgba(255,255,255,.62)", marginTop: 2 },
-
   tagRow: { marginTop: 10, display: "flex", alignItems: "center", gap: 10 },
-
   tagPending: {
     display: "inline-block",
     fontSize: 11,
@@ -564,7 +495,6 @@ reservasText: {
     borderRadius: 999,
     width: "fit-content",
   },
-
   tagConfirmed: {
     marginTop: 10,
     display: "inline-block",
@@ -577,7 +507,6 @@ reservasText: {
     borderRadius: 999,
     width: "fit-content",
   },
-
   payBtn: {
     height: 30,
     padding: "0 12px",
@@ -589,11 +518,8 @@ reservasText: {
     fontSize: 12,
     cursor: "pointer",
   },
-
   cardRight: { display: "flex", alignItems: "center", gap: 14 },
-
   spots: { fontSize: 14, color: "rgba(255,255,255,.78)", fontWeight: 700 },
-
   userPill: {
     width: 34,
     height: 34,
@@ -603,9 +529,7 @@ reservasText: {
     display: "grid",
     placeItems: "center",
   },
-
   userIcon: { width: 18, height: 18, opacity: 0.95 },
-
   modalOverlay: {
     position: "fixed",
     inset: 0,
@@ -616,7 +540,6 @@ reservasText: {
     padding: 18,
     zIndex: 999,
   },
-
   modalCard: {
     width: "min(560px, 92vw)",
     background: "#2A2A2A",
@@ -625,7 +548,6 @@ reservasText: {
     boxShadow: "0 22px 70px rgba(0,0,0,.55)",
     overflow: "hidden",
   },
-
   modalHeader: {
     display: "flex",
     alignItems: "center",
@@ -633,9 +555,7 @@ reservasText: {
     padding: "16px 18px",
     borderBottom: "1px solid rgba(255,255,255,.08)",
   },
-
   modalTitle: { fontWeight: 900, fontSize: 16, color: "rgba(255,255,255,.92)" },
-
   modalClose: {
     width: 36,
     height: 36,
@@ -646,9 +566,7 @@ reservasText: {
     cursor: "pointer",
     fontSize: 16,
   },
-
   modalBody: { padding: "16px 18px" },
-
   modalLine: {
     display: "flex",
     justifyContent: "space-between",
@@ -656,34 +574,20 @@ reservasText: {
     padding: "10px 0",
     borderBottom: "1px solid rgba(255,255,255,.06)",
   },
-
-  modalDesc: {
-  padding: "12px 0",
-},
-
-modalDescText: {
-  marginTop: 6,
-  color: "rgba(255,255,255,.86)",
-  fontSize: 13,
-  lineHeight: 1.45,
-  background: "rgba(0,0,0,.14)",
-  border: "1px solid rgba(255,255,255,.06)",
-  borderRadius: 12,
-  padding: "10px 12px",
-},
-
-
-  modalLabel: { color: "rgba(255,255,255,.65)", fontSize: 13, fontWeight: 700 },
-
-  modalValue: { color: "rgba(255,255,255,.92)", fontSize: 14, fontWeight: 800 },
-
-  modalHint: {
-    marginTop: 14,
-    color: "rgba(255,255,255,.72)",
+  modalDesc: { padding: "12px 0" },
+  modalDescText: {
+    marginTop: 6,
+    color: "rgba(255,255,255,.86)",
     fontSize: 13,
-    lineHeight: 1.4,
+    lineHeight: 1.45,
+    background: "rgba(0,0,0,.14)",
+    border: "1px solid rgba(255,255,255,.06)",
+    borderRadius: 12,
+    padding: "10px 12px",
   },
-
+  modalLabel: { color: "rgba(255,255,255,.65)", fontSize: 13, fontWeight: 700 },
+  modalValue: { color: "rgba(255,255,255,.92)", fontSize: 14, fontWeight: 800 },
+  modalHint: { marginTop: 14, color: "rgba(255,255,255,.72)", fontSize: 13, lineHeight: 1.4 },
   modalActions: {
     display: "flex",
     justifyContent: "flex-end",
@@ -692,7 +596,6 @@ modalDescText: {
     borderTop: "1px solid rgba(255,255,255,.08)",
     flexWrap: "wrap",
   },
-
   btnGhost: {
     height: 42,
     padding: "0 14px",
@@ -703,26 +606,6 @@ modalDescText: {
     fontWeight: 900,
     cursor: "pointer",
   },
-
-  btnPrimary: {
-    height: 42,
-    padding: "0 16px",
-    borderRadius: 12,
-    border: "none",
-    background: "#E2F163",
-    color: "#111",
-    fontWeight: 900,
-    cursor: "pointer",
-  },
-
-  btnDanger: {
-    height: 42,
-    padding: "0 16px",
-    borderRadius: 12,
-    border: "1px solid rgba(226,241,99,.35)",
-    background: "rgba(226,241,99,.10)",
-    color: "#E2F163",
-    fontWeight: 900,
-    cursor: "pointer",
-  },
+  btnPrimary: { height: 42, padding: "0 16px", borderRadius: 12, border: "none", background: "#E2F163", color: "#111", fontWeight: 900, cursor: "pointer" },
+  btnDanger: { height: 42, padding: "0 16px", borderRadius: 12, border: "1px solid rgba(226,241,99,.35)", background: "rgba(226,241,99,.10)", color: "#E2F163", fontWeight: 900, cursor: "pointer" },
 };

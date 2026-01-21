@@ -8,7 +8,7 @@ export class PagamentosController {
 
   @Post("pix")
   criarPix(@Body() dto: CreatePixDto) {
+    // dto.assinaturaId agora é number
     return this.service.criarPixMercadoPago(dto.assinaturaId);
-
   }
 }

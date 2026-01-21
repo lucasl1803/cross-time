@@ -18,42 +18,48 @@ export class PagamentosService {
 
   /**
    * PIX REAL - Mercado Pago
+   * Entrada: assinaturaId (number) vindo do front (ex: 1)
+   * Banco: assinatura.id = BigInt
+   *
    * Retorna:
    * - copiaECola (qr_code)
    * - qrBase64 (qr_code_base64)
    * - txid (id do pagamento no MP)
    */
-  async criarPixMercadoPago(assinaturaIdNum: number) {
-    const assinaturaId = BigInt(assinaturaIdNum);
+  async criarPixMercadoPago(assinaturaId: number) {
+    // 0) converter number -> BigInt
+    const assinaturaIdBigInt = BigInt(assinaturaId);
 
+    // 1) validar se assinatura existe
     const assinatura = await this.prisma.assinatura.findUnique({
-      where: { id: assinaturaId },
+      where: { id: assinaturaIdBigInt },
       select: { id: true },
     });
 
     if (!assinatura) throw new NotFoundException("Assinatura não encontrada.");
 
+    // 2) validar token do Mercado Pago
     if (!process.env.MP_ACCESS_TOKEN) {
       throw new Error("Defina MP_ACCESS_TOKEN no .env do backend.");
     }
 
     const transactionAmount = 199.9;
 
- const resp = await this.mp.post(
-  "/v1/payments",
-  {
-    transaction_amount: transactionAmount,
-    description: `Assinatura ${assinaturaIdNum} - CrossTime`,
-    payment_method_id: "pix",
-    payer: { email: "lucaslealc1803@gmail.com" },
-  },
-  {
-    headers: {
-      "X-Idempotency-Key": randomUUID(),
-    },
-  }
-);
-
+    // 3) criar PIX no Mercado Pago
+    const resp = await this.mp.post(
+      "/v1/payments",
+      {
+        transaction_amount: transactionAmount,
+        description: `Assinatura ${assinatura.id.toString()} - CrossTime`,
+        payment_method_id: "pix",
+        payer: { email: "lucaslealc1803@gmail.com" },
+      },
+      {
+        headers: {
+          "X-Idempotency-Key": randomUUID(),
+        },
+      },
+    );
 
     const mpPayment = resp.data;
 
@@ -65,16 +71,23 @@ export class PagamentosService {
       throw new Error("Mercado Pago não retornou qr_code/qr_code_base64.");
     }
 
+    // 4) salvar pagamento no banco
     const pagamento = await this.prisma.pagamento.create({
       data: {
-        assinaturaId,
+        assinaturaId: assinaturaIdBigInt, // ✅ BigInt
         provedor: "MERCADO_PAGO_PIX",
         valorCentavos: Math.round(transactionAmount * 100),
         status: PagamentoStatus.AGUARDANDO,
         txid: String(mpPayment.id),
         copiaECola,
       },
-      select: { id: true, status: true, txid: true, copiaECola: true, criadoEm: true },
+      select: {
+        id: true,
+        status: true,
+        txid: true,
+        copiaECola: true,
+        criadoEm: true,
+      },
     });
 
     return {
@@ -88,7 +101,7 @@ export class PagamentosService {
   }
 
   /**
-   * PIX FAKE - mantenha se quiser fallback rápido
+   * PIX FAKE - fallback (se quiser testar sem MP)
    */
   async criarPixFake(assinaturaIdNum: number) {
     const assinaturaId = BigInt(assinaturaIdNum);
