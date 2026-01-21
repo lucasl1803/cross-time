@@ -11,70 +11,138 @@ export default function Pagamento() {
   // 1) /pagamento/:assinaturaId
   // 2) state do navigate("/pagamento", { state: { assinaturaId } })
   // 3) query ?assinaturaId=123
-  const assinaturaId = useMemo(() => {
+  const assinaturaIdRaw = useMemo(() => {
     const fromParams = params.assinaturaId;
     const fromState = location.state?.assinaturaId;
     const fromQuery = new URLSearchParams(location.search).get("assinaturaId");
-    return fromParams || fromState || fromQuery || "";
+    return (fromParams || fromState || fromQuery || "").toString();
   }, [params.assinaturaId, location.state, location.search]);
 
   // ✅ Converte para número e detecta UUID/valor inválido
-const assinaturaIdNumber = useMemo(() => {
-  const n = Number(assinaturaId);
-  return Number.isInteger(n) ? n : null;
-}, [assinaturaId]);
+  const assinaturaIdNumber = useMemo(() => {
+    const n = Number(assinaturaIdRaw);
+    return Number.isInteger(n) ? n : null;
+  }, [assinaturaIdRaw]);
 
+  const isIdValido = assinaturaIdNumber !== null && assinaturaIdNumber >= 1;
 
-  // ✅ Se vier UUID, não deixa ficar nessa tela
- useEffect(() => {
-  if (assinaturaId && assinaturaIdNumber === null) {
-    setErro("Link de pagamento inválido (ID não numérico). Volte e clique em Pagar pela Home.");
-  }
-}, [assinaturaId, assinaturaIdNumber]);
-
-
-  const [loading, setLoading] = useState(false);
+  const [loadingPix, setLoadingPix] = useState(false);
+  const [loadingConfirm, setLoadingConfirm] = useState(false);
   const [erro, setErro] = useState("");
   const [pix, setPix] = useState(null); // { qrBase64, copiaECola, ... }
+  const [copiado, setCopiado] = useState(false);
+
+  // ✅ Se vier UUID, não deixa ficar nessa tela (mas também não navega sozinho)
+  useEffect(() => {
+    if (assinaturaIdRaw && assinaturaIdNumber === null) {
+      setErro("Link de pagamento inválido (ID não numérico). Volte e clique em Pagar pela Home.");
+    }
+  }, [assinaturaIdRaw, assinaturaIdNumber]);
 
   async function handlePagar() {
-  if (assinaturaIdNumber === null || assinaturaIdNumber < 1) {
-  setErro("assinaturaId inválido. Precisa ser um número inteiro (ex: 1, 2, 3).");
-  return;
-}
-
+    if (!isIdValido) {
+      setErro("assinaturaId inválido. Precisa ser um número inteiro (ex: 1, 2, 3).");
+      return;
+    }
 
     setErro("");
-    setLoading(true);
+    setCopiado(false);
+    setLoadingPix(true);
 
     try {
-    const { data } = await api.post("/pagamentos/pix", {
-  assinaturaId: assinaturaIdNumber,
-});
-
+      const { data } = await api.post("/pagamentos/pix", {
+        assinaturaId: assinaturaIdNumber,
+      });
 
       setPix(data);
     } catch (e) {
+      const status = e?.response?.status;
+      const payload = e?.response?.data;
+
       const msg =
-        e?.response?.data?.message ||
-        e?.response?.data?.error ||
+        payload?.message ||
+        payload?.error ||
+        payload?.details ||
         "Falha ao gerar PIX. Tente novamente.";
-      setErro(Array.isArray(msg) ? msg.join(", ") : msg);
+
+      const finalMsg = Array.isArray(msg) ? msg.join(", ") : msg;
+
+      setErro(status ? `Erro ${status}: ${finalMsg}` : finalMsg);
     } finally {
-      setLoading(false);
+      setLoadingPix(false);
+    }
+  }
+
+  // ✅ DEMO MAIS RÁPIDO (SEM BACKEND): marca a sessão como CONFIRMADO no localStorage
+  function handleJaPagueiDemo() {
+    const sessaoId = location.state?.sessaoId;
+
+    if (!sessaoId) {
+      alert("Não encontrei sessaoId. Volte e clique em Pagar pela Home.");
+      return;
+    }
+
+    try {
+      const raw = localStorage.getItem("reservas");
+      const reservas = raw ? JSON.parse(raw) : {};
+      reservas[sessaoId] = "CONFIRMADO";
+      localStorage.setItem("reservas", JSON.stringify(reservas));
+      navigate("/home");
+    } catch {
+      alert("Falha ao salvar confirmação (demo).");
+    }
+  }
+
+  // ✅ DEMO COM BACKEND (se você criar o endpoint)
+  async function handleConfirmarDemoBackend() {
+    if (!isIdValido) {
+      setErro("assinaturaId inválido. Não dá pra confirmar.");
+      return;
+    }
+
+    setErro("");
+    setLoadingConfirm(true);
+
+    try {
+      // Sugestão: POST /pagamentos/confirmar-demo com { assinaturaId }
+      await api.post("/pagamentos/confirmar-demo", { assinaturaId: assinaturaIdNumber });
+      navigate("/home");
+    } catch (e) {
+      const status = e?.response?.status;
+      const payload = e?.response?.data;
+
+      const msg =
+        payload?.message ||
+        payload?.error ||
+        payload?.details ||
+        "Falha ao confirmar pagamento (demo).";
+
+      const finalMsg = Array.isArray(msg) ? msg.join(", ") : msg;
+
+      setErro(status ? `Erro ${status}: ${finalMsg}` : finalMsg);
+    } finally {
+      setLoadingConfirm(false);
     }
   }
 
   async function copiar() {
+    const texto = pix?.copiaECola || "";
+    if (!texto) return;
+
     try {
-      await navigator.clipboard.writeText(pix?.copiaECola || "");
+      await navigator.clipboard.writeText(texto);
+      setCopiado(true);
+      setTimeout(() => setCopiado(false), 1500);
     } catch {
       const ta = document.createElement("textarea");
-      ta.value = pix?.copiaECola || "";
+      ta.value = texto;
       document.body.appendChild(ta);
       ta.select();
       document.execCommand("copy");
       document.body.removeChild(ta);
+
+      setCopiado(true);
+      setTimeout(() => setCopiado(false), 1500);
     }
   }
 
@@ -85,6 +153,8 @@ const assinaturaIdNumber = useMemo(() => {
           <button onClick={() => navigate(-1)} style={styles.backBtn}>
             Voltar
           </button>
+
+       
           <h1 style={styles.title}>Pagamento</h1>
         </div>
 
@@ -92,21 +162,25 @@ const assinaturaIdNumber = useMemo(() => {
           <div style={styles.row}>
             <div>
               <div style={styles.label}>Assinatura</div>
-              <div style={styles.value}>
-                {assinaturaIdNumber ? assinaturaIdNumber : "-"}
-              </div>
+              <div style={styles.value}>{isIdValido ? assinaturaIdNumber : "-"}</div>
+
+              {!isIdValido && assinaturaIdRaw ? (
+                <div style={{ ...styles.mini, marginTop: 6 }}>
+                  Recebido: <b>{assinaturaIdRaw}</b>
+                </div>
+              ) : null}
             </div>
 
             <button
               onClick={handlePagar}
-              disabled={loading || !assinaturaIdNumber}
+              disabled={loadingPix || !isIdValido}
               style={{
                 ...styles.payBtn,
-                opacity: loading || !assinaturaIdNumber ? 0.7 : 1,
-                cursor: loading || !assinaturaIdNumber ? "not-allowed" : "pointer",
+                opacity: loadingPix || !isIdValido ? 0.7 : 1,
+                cursor: loadingPix || !isIdValido ? "not-allowed" : "pointer",
               }}
             >
-              {loading ? "Gerando PIX..." : "Pagar"}
+              {loadingPix ? "Gerando PIX..." : "Gerar PIX"}
             </button>
           </div>
 
@@ -133,13 +207,24 @@ const assinaturaIdNumber = useMemo(() => {
               <div style={styles.label}>Copia e Cola</div>
               <textarea readOnly value={pix.copiaECola || ""} style={styles.textarea} />
               <button onClick={copiar} style={styles.copyBtn}>
-                Copiar código
+                {copiado ? "Copiado ✅" : "Copiar código"}
               </button>
+            </div>
+
+            {/* ✅ BOTÃO DEMO (SEM BACKEND) */}
+            <button onClick={handleJaPagueiDemo} style={styles.demoBtn}>
+              Pagamento já realizado! 
+            </button>
+
+      
+            <div style={styles.mini}>
+              * O QR do PIX não abre “site” do Mercado Pago. Você paga pelo app do seu banco/MP,
+              escaneando o QR ou colando o código.
             </div>
           </div>
         ) : (
           <div style={styles.hint}>
-            Clique em <b>Pagar</b> para gerar o QR Code e o código copia e cola.
+            Clique em <b>Gerar PIX</b> para obter o QR Code e o código copia e cola.
           </div>
         )}
       </div>
@@ -164,15 +249,16 @@ const styles = {
     padding: 20,
     color: "#e5e7eb",
   },
-  header: { display: "flex", alignItems: "center", gap: 12, marginBottom: 12 },
+  header: { display: "flex", alignItems: "center", gap: 12, marginBottom: 12, flexWrap: "wrap" },
   backBtn: {
     background: "transparent",
     border: "1px solid rgba(255,255,255,0.18)",
     color: "#e5e7eb",
     padding: "8px 12px",
     borderRadius: 10,
+    cursor: "pointer",
   },
-  title: { fontSize: 22, margin: 0 },
+  title: { fontSize: 22, margin: 0, marginLeft: "auto" },
   section: {
     padding: 14,
     borderRadius: 14,
@@ -189,12 +275,42 @@ const styles = {
   },
   label: { fontSize: 12, opacity: 0.8 },
   value: { fontSize: 16, fontWeight: 600 },
+  mini: { marginTop: 10, opacity: 0.8, fontSize: 12, lineHeight: 1.35 },
   payBtn: {
     background: "#22c55e",
     border: "none",
     borderRadius: 12,
     padding: "10px 16px",
     fontWeight: 700,
+    cursor: "pointer",
+  },
+  demoBtn: {
+    marginTop: 10,
+    width: "100%",
+    borderRadius: 12,
+    padding: "10px 14px",
+    border: "1px solid rgba(255,255,255,0.18)",
+    background: "rgba(226,241,99,.10)",
+    color: "#E2F163",
+    fontWeight: 800,
+    cursor: "pointer",
+  },
+  confirmBtn: {
+    background: "#E2F163",
+    border: "none",
+    borderRadius: 12,
+    padding: "10px 14px",
+    fontWeight: 900,
+    color: "#111",
+  },
+  secondaryBtn: {
+    background: "rgba(255,255,255,0.06)",
+    border: "1px solid rgba(255,255,255,0.18)",
+    borderRadius: 12,
+    padding: "10px 14px",
+    fontWeight: 800,
+    color: "#e5e7eb",
+    cursor: "pointer",
   },
   error: {
     marginTop: 12,
@@ -228,6 +344,7 @@ const styles = {
     background: "rgba(255,255,255,0.06)",
     color: "#e5e7eb",
     fontWeight: 700,
+    cursor: "pointer",
   },
   hint: { marginTop: 14, opacity: 0.85, fontSize: 13, paddingLeft: 6 },
 };

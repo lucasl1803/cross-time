@@ -7,6 +7,8 @@ const STORAGE = {
   BOX_NAME: "box:nome",
   BOX_AULAS: "box:aulas",
   ROLE: "role",
+  RESERVAS: "reservas",
+
 };
 
 // ✅ HOTFIX HOJE: ID da assinatura que existe no seu Prisma Studio
@@ -85,7 +87,15 @@ export default function Home() {
     return mockSessoes;
   }, []);
 
-  const [reservas, setReservas] = useState({});
+ const [reservas, setReservas] = useState(() => {
+  const raw = localStorage.getItem(STORAGE.RESERVAS);
+  return raw ? JSON.parse(raw) : {};
+});
+
+useEffect(() => {
+  localStorage.setItem(STORAGE.RESERVAS, JSON.stringify(reservas));
+}, [reservas]);
+
   const [hoverId, setHoverId] = useState(null);
 
   const [modalOpen, setModalOpen] = useState(false);
@@ -237,7 +247,10 @@ export default function Home() {
                             onClick={(e) => {
                               e.stopPropagation();
                               console.log("DEBUG: indo pro pagamento", { assinaturaId: ASSINATURA_DEMO_ID });
-                              navigate(`/pagamento/${ASSINATURA_DEMO_ID}`);
+                             navigate(`/pagamento/${ASSINATURA_DEMO_ID}`, {
+  state: { sessaoId: sessao.id },
+});
+
                             }}
                           >
                             Pagar
