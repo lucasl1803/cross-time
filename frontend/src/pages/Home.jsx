@@ -2,29 +2,30 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import userIcon from "../assets/Usuarioicone.png";
 import { listarSessoes } from "../services/sessoes";
+import { socket } from "../services/socket";
 
 const STORAGE = {
   BOX_NAME: "box:nome",
   BOX_AULAS: "box:aulas",
-  BOX_EMAILS: "box:emails",    
+  BOX_EMAILS: "box:emails",
   PERFIL: "perfil",
   USUARIO_ID: "usuarioId",
-  EMAIL: "email",              
+  EMAIL: "email",
   RESERVAS: "reservas",
 };
-
 
 // ID da assinatura que existe no seu Prisma Studio
 const ASSINATURA_DEMO_ID = 1;
 
+// ✅ fallback SEM 0/0
 const mockSessoes = [
-  { id: 1, horario: "06:00", modalidade: "Crossfit", coach: "Coach Flávia", inscritos: 0, capacidade: 0 },
-  { id: 2, horario: "07:00", modalidade: "Crossfit", coach: "Coach Flávia", inscritos: 0, capacidade: 0 },
-  { id: 3, horario: "08:00", modalidade: "Crossfit", coach: "Coach Bruno", inscritos: 0, capacidade: 0 },
-  { id: 4, horario: "12:15", modalidade: "Crossfit", coach: "Coach Flávia", inscritos: 0, capacidade: 0 },
-  { id: 5, horario: "16:30", modalidade: "Crossfit", coach: "Coach Ana Luiza", inscritos: 0, capacidade: 0 },
-  { id: 6, horario: "17:30", modalidade: "Crossfit", coach: "Coach Bruno", inscritos: 0, capacidade: 0 },
-  { id: 7, horario: "18:30", modalidade: "Crossfit", coach: "Coach Ana Luiza", inscritos: 0, capacidade: 0 },
+  { id: 1, horario: "06:00", modalidade: "Crossfit", coach: "Coach Flávia", inscritos: 0, capacidade: 15 },
+  { id: 2, horario: "07:00", modalidade: "Crossfit", coach: "Coach Flávia", inscritos: 0, capacidade: 15 },
+  { id: 3, horario: "08:00", modalidade: "Crossfit", coach: "Coach Bruno", inscritos: 0, capacidade: 15 },
+  { id: 4, horario: "12:15", modalidade: "Crossfit", coach: "Coach Flávia", inscritos: 0, capacidade: 15 },
+  { id: 5, horario: "16:30", modalidade: "Crossfit", coach: "Coach Ana Luiza", inscritos: 0, capacidade: 15 },
+  { id: 6, horario: "17:30", modalidade: "Crossfit", coach: "Coach Bruno", inscritos: 0, capacidade: 15 },
+  { id: 7, horario: "18:30", modalidade: "Crossfit", coach: "Coach Ana Luiza", inscritos: 0, capacidade: 15 },
 ];
 
 function safeParseJSON(value, fallback) {
@@ -45,36 +46,34 @@ function loadArray(key) {
 export default function Home() {
   const navigate = useNavigate();
 
-  // perfil vem do login do backend: "ALUNO" | "ADMIN"
   const perfil = localStorage.getItem(STORAGE.PERFIL) || "ALUNO";
   const isCoach = perfil === "ADMIN";
 
+  // ✅ Proteção: aluno só entra se estiver autorizado na box
   useEffect(() => {
-  if (isCoach) return;
+    if (isCoach) return;
 
-  const emailLogado = (localStorage.getItem(STORAGE.EMAIL) || "").toLowerCase().trim();
-  const emailsAutorizados = loadArray(STORAGE.BOX_EMAILS).map((e) =>
-    String(e).toLowerCase().trim()
-  );
+    const emailLogado = (localStorage.getItem(STORAGE.EMAIL) || "").toLowerCase().trim();
+    const emailsAutorizados = loadArray(STORAGE.BOX_EMAILS).map((e) => String(e).toLowerCase().trim());
 
-  const autorizado = emailLogado && emailsAutorizados.includes(emailLogado);
+    const autorizado = emailLogado && emailsAutorizados.includes(emailLogado);
 
-  if (!autorizado) {
-    localStorage.removeItem(STORAGE.PERFIL);
-    localStorage.removeItem(STORAGE.USUARIO_ID);
-    localStorage.removeItem(STORAGE.RESERVAS);
-    navigate("/login");
-  }
-}, [isCoach, navigate]);
-
+    if (!autorizado) {
+      localStorage.removeItem(STORAGE.PERFIL);
+      localStorage.removeItem(STORAGE.USUARIO_ID);
+      localStorage.removeItem(STORAGE.RESERVAS);
+      navigate("/login");
+    }
+  }, [isCoach, navigate]);
 
   const boxNome = localStorage.getItem(STORAGE.BOX_NAME) || "Sua Box";
 
-  //(não troca API <-> mock)
+  // ✅ busca API
   const [sessoesApi, setSessoesApi] = useState([]);
   const [loadingApi, setLoadingApi] = useState(true);
   const [apiOk, setApiOk] = useState(false);
 
+  // 1) carrega sessões
   useEffect(() => {
     let alive = true;
 
@@ -96,12 +95,39 @@ export default function Home() {
             horario,
             modalidade: x.wod?.titulo || "Aula",
             coach: "",
-            inscritos: 0,
-            capacidade: x.capacidade ?? 0,
+            inscritos: Number(x.inscritos ?? 0),
+            // ✅ garante capacidade mínima 15 para não ficar 0/0
+            capacidade: Math.max(15, Number(x.capacidade ?? 0)),
             duracaoMin: x.duracaoMinutos,
             status: x.status,
           };
         });
+
+        useEffect(() => {
+  function onSessaoUpdated(payload) {
+    // payload do backend: { sessaoId, inscritos, capacidade, status }
+    const sid = Number(payload?.sessaoId ?? payload?.id);
+
+    if (!sid) return;
+
+    setSessoesApi((prev) =>
+      prev.map((s) =>
+        Number(s.id) === sid
+          ? {
+              ...s,
+              inscritos: Number(payload?.inscritos ?? s.inscritos ?? 0),
+              capacidade: Number(payload?.capacidade ?? s.capacidade ?? 0),
+              status: payload?.status ?? s.status,
+            }
+          : s
+      )
+    );
+  }
+
+  socket.on("sessao:updated", onSessaoUpdated);
+  return () => socket.off("sessao:updated", onSessaoUpdated);
+}, []);
+
 
         if (!alive) return;
         setSessoesApi(mapped);
@@ -124,6 +150,31 @@ export default function Home() {
     };
   }, []);
 
+  // 2) WebSocket: atualiza inscritos em tempo real
+  useEffect(() => {
+    function onSessaoUpdated(payload) {
+      // payload pode vir como {sessaoId,...} ou {id,...}
+      const sid = Number(payload?.sessaoId ?? payload?.id);
+      if (!sid) return;
+
+      setSessoesApi((prev) =>
+        prev.map((s) =>
+          Number(s.id) === sid
+            ? {
+                ...s,
+                inscritos: Number(payload.inscritos ?? s.inscritos ?? 0),
+                capacidade: Math.max(15, Number(payload.capacidade ?? s.capacidade ?? 0)),
+                status: payload.status ?? s.status,
+              }
+            : s
+        )
+      );
+    }
+
+    socket.on("sessao:updated", onSessaoUpdated);
+    return () => socket.off("sessao:updated", onSessaoUpdated);
+  }, []);
+
   const [reservas, setReservas] = useState(() => {
     const raw = localStorage.getItem(STORAGE.RESERVAS);
     return raw ? safeParseJSON(raw, {}) : {};
@@ -134,11 +185,8 @@ export default function Home() {
   }, [reservas]);
 
   const [hoverId, setHoverId] = useState(null);
-
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedSessao, setSelectedSessao] = useState(null);
-
-  const qtdReservasHoje = Object.keys(reservas).length;
 
   function openModal(sessao) {
     setSelectedSessao(sessao);
@@ -150,6 +198,7 @@ export default function Home() {
     setSelectedSessao(null);
   }
 
+  // ✅ Confirmar = pendente (amarelo) e só paga depois
   function confirmarReserva() {
     if (!selectedSessao) return;
 
@@ -173,45 +222,21 @@ export default function Home() {
     closeModal();
   }
 
-  function marcarComoConfirmado() {
-    if (!selectedSessao) return;
-
-    setReservas((prev) => ({
-      ...prev,
-      [selectedSessao.id]: "CONFIRMADO",
-    }));
-
-    closeModal();
-  }
-
   function logout() {
     localStorage.removeItem(STORAGE.PERFIL);
     localStorage.removeItem(STORAGE.USUARIO_ID);
+    localStorage.removeItem(STORAGE.EMAIL);
     navigate("/login");
   }
 
   const selectedStatus = selectedSessao ? reservas[selectedSessao.id] : undefined;
 
-  // fonte única sem piscar: espera a API terminar e decide
-const sessoesFinal = useMemo(() => {
-  // enquanto carrega, não mostra nada
-  if (loadingApi) return [];
-
-  // coach: prioridade é o que ele cadastrou na MinhaBox
-  if (isCoach) {
-    const aulasDaBox = loadArray(STORAGE.BOX_AULAS);
-    if (aulasDaBox.length > 0) return aulasDaBox;
-  }
-
-  // aluno: prioridade é API (sessões reais do backend)
-  if (!isCoach && apiOk && sessoesApi.length > 0) return sessoesApi;
-
-  // fallback: se não tiver API, usa localStorage
-  const aulasDaBox = loadArray(STORAGE.BOX_AULAS);
-  if (aulasDaBox.length > 0) return aulasDaBox;
-
-  return mockSessoes;
-}, [loadingApi, isCoach, apiOk, sessoesApi]);
+  // ✅ fonte única: API primeiro, fallback só se API falhar
+  const sessoesFinal = useMemo(() => {
+    if (loadingApi) return [];
+    if (apiOk && sessoesApi.length > 0) return sessoesApi;
+    return mockSessoes;
+  }, [loadingApi, apiOk, sessoesApi]);
 
   return (
     <div style={s.page}>
@@ -249,15 +274,11 @@ const sessoesFinal = useMemo(() => {
         <section style={s.headerCard}>
           <div>
             <div style={s.hello}>Olá, Lucas!</div>
-            <div style={s.subtitle}>
-              {isCoach ? "Visão geral da agenda de aulas" : "Vamos realizar o check-in hoje?"}
-            </div>
+            <div style={s.subtitle}>{isCoach ? "Visão geral da agenda de aulas" : "Vamos realizar o check-in hoje?"}</div>
           </div>
 
           <div style={s.headerRight}>
             <div style={s.boxName}>{boxNome}</div>
-
-        
           </div>
         </section>
 
@@ -274,7 +295,7 @@ const sessoesFinal = useMemo(() => {
                 const isConfirmed = status === "CONFIRMADO";
 
                 const inscritos = Number(sessao.inscritos ?? 0);
-                const capacidade = Number(sessao.capacidade ?? 0);
+                const capacidade = Math.max(15, Number(sessao.capacidade ?? 0));
 
                 return (
                   <div
@@ -301,7 +322,6 @@ const sessoesFinal = useMemo(() => {
                           {sessao.duracaoMin ? ` • ${sessao.duracaoMin} min` : ""}
                         </div>
 
-                        {/* ✅ aluno vê fluxo de pagamento/reserva */}
                         {!isCoach && isPending && (
                           <div style={s.tagRow}>
                             <div style={s.tagPending}>Pendente</div>
@@ -310,9 +330,12 @@ const sessoesFinal = useMemo(() => {
                               style={s.payBtn}
                               onClick={(e) => {
                                 e.stopPropagation();
-                                navigate(`/pagamento/${ASSINATURA_DEMO_ID}`, {
-                                  state: { sessaoId: sessao.id },
-                                });
+
+                                // ✅ salva a sessão que será paga (fallback)
+                                localStorage.setItem("pagamento:sessaoId", String(sessao.id));
+
+                                // ✅ manda também na URL (garante 100%)
+                                navigate(`/pagamento/${ASSINATURA_DEMO_ID}?sessaoId=${sessao.id}`);
                               }}
                             >
                               Pagar
@@ -343,12 +366,7 @@ const sessoesFinal = useMemo(() => {
 
       {modalOpen && (
         <div style={s.modalOverlay} onClick={closeModal} role="presentation">
-          <div
-            style={s.modalCard}
-            onClick={(e) => e.stopPropagation()}
-            role="dialog"
-            aria-modal="true"
-          >
+          <div style={s.modalCard} onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
             <div style={s.modalHeader}>
               <div style={s.modalTitle}>
                 {isCoach ? "Detalhes da sessão" : selectedStatus ? "Gerenciar reserva" : "Confirmar reserva"}
@@ -381,13 +399,6 @@ const sessoesFinal = useMemo(() => {
                 </div>
               ) : null}
 
-              {selectedSessao?.descricao ? (
-                <div style={s.modalDesc}>
-                  <span style={s.modalLabel}>Descrição</span>
-                  <div style={s.modalDescText}>{selectedSessao.descricao}</div>
-                </div>
-              ) : null}
-
               {!isCoach && (
                 <div style={s.modalHint}>
                   {selectedStatus
@@ -402,21 +413,12 @@ const sessoesFinal = useMemo(() => {
                 Voltar
               </button>
 
-              {/* ✅ coach não mexe em reserva */}
               {!isCoach && (
                 <>
                   {selectedStatus ? (
-                    <>
-                      <button style={s.btnDanger} onClick={cancelarReserva}>
-                        Cancelar reserva
-                      </button>
-
-                      {selectedStatus === "PENDENTE" && (
-                        <button style={s.btnPrimary} onClick={marcarComoConfirmado}>
-                          Marcar como confirmado
-                        </button>
-                      )}
-                    </>
+                    <button style={s.btnDanger} onClick={cancelarReserva}>
+                      Cancelar reserva
+                    </button>
                   ) : (
                     <button style={s.btnPrimary} onClick={confirmarReserva}>
                       Confirmar
@@ -432,7 +434,6 @@ const sessoesFinal = useMemo(() => {
   );
 }
 
-// estilos (o seu const s vai aqui embaixo)
 const s = {
   page: {
     height: "100vh",

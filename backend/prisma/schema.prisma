@@ -118,8 +118,13 @@ model SessaoAula {
   dataAula       DateTime    @map("data_aula") @db.Date
   horaInicio     DateTime    @map("hora_inicio") @db.Time(6)
   duracaoMinutos Int         @map("duracao_minutos")
-  capacidade     Int
-  status         SessaoStatus
+
+  
+  capacidade     Int         @default(15)
+
+
+  status         SessaoStatus @default(ABERTA)
+
   wodId          BigInt      @map("wod_id")
   criadoEm       DateTime    @default(now()) @map("criado_em") @db.Timestamp(6)
 

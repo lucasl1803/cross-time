@@ -30,6 +30,8 @@ export default function Login() {
 
       localStorage.setItem("usuarioId", usuario.id);
       localStorage.setItem("perfil", usuario.tipo);
+      localStorage.setItem("email", usuario.email);
+
 
       if (usuario.tipo === "ALUNO") {
         navigate("/home");

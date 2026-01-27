@@ -14,7 +14,7 @@ export class SessoesController {
   constructor(private readonly service: SessoesService) {}
 
   @Get()
-  listByDate(@Query("date") date?: string) {
+  async listByDate(@Query("date") date?: string) {
     const dateStr = date?.trim() ? date.trim() : todayYYYYMMDD();
     return this.service.listByDate(dateStr);
   }

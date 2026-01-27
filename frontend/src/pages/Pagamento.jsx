@@ -1,47 +1,60 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { api } from "../services/api";
+import { socket } from "../services/socket";
+
+const STORAGE_SESSAO = "pagamento:sessaoId";
+
+function toNonEmptyString(v) {
+  const s = String(v ?? "").trim();
+  return s.length ? s : null;
+}
 
 export default function Pagamento() {
   const navigate = useNavigate();
   const params = useParams();
   const location = useLocation();
 
-  // assinaturaId pode vir por:
-  // 1) /pagamento/:assinaturaId
-  // 2) state do navigate("/pagamento", { state: { assinaturaId } })
-  // 3) query ?assinaturaId=123
-  const assinaturaIdRaw = useMemo(() => {
-    const fromParams = params.assinaturaId;
-    const fromState = location.state?.assinaturaId;
-    const fromQuery = new URLSearchParams(location.search).get("assinaturaId");
-    return (fromParams || fromState || fromQuery || "").toString();
+  // assinaturaId (continua numérico, ok)
+  const assinaturaIdNumber = useMemo(() => {
+    const fromParams = Number(params.assinaturaId);
+    if (Number.isInteger(fromParams) && fromParams >= 1) return fromParams;
+
+    const fromState = Number(location.state?.assinaturaId);
+    if (Number.isInteger(fromState) && fromState >= 1) return fromState;
+
+    const fromQuery = Number(new URLSearchParams(location.search).get("assinaturaId"));
+    if (Number.isInteger(fromQuery) && fromQuery >= 1) return fromQuery;
+
+    return null;
   }, [params.assinaturaId, location.state, location.search]);
 
-  // ✅ Converte para número e detecta UUID/valor inválido
-  const assinaturaIdNumber = useMemo(() => {
-    const n = Number(assinaturaIdRaw);
-    return Number.isInteger(n) ? n : null;
-  }, [assinaturaIdRaw]);
+  const isIdValido = assinaturaIdNumber !== null;
 
-  const isIdValido = assinaturaIdNumber !== null && assinaturaIdNumber >= 1;
+  // ✅ sessaoId COMO STRING (pode ser UUID)
+  const sessaoId = useMemo(() => {
+    const sp = new URLSearchParams(location.search);
+
+    const fromState = toNonEmptyString(location.state?.sessaoId);
+    const fromQuery = toNonEmptyString(sp.get("sessaoId"));
+    const fromStorage = toNonEmptyString(localStorage.getItem(STORAGE_SESSAO));
+
+    return fromState || fromQuery || fromStorage || null;
+  }, [location.state, location.search]);
+
+  // ✅ trava o sessaoId no storage assim que abrir a tela
+  useEffect(() => {
+    if (sessaoId) localStorage.setItem(STORAGE_SESSAO, sessaoId);
+  }, [sessaoId]);
 
   const [loadingPix, setLoadingPix] = useState(false);
-  const [loadingConfirm, setLoadingConfirm] = useState(false);
   const [erro, setErro] = useState("");
-  const [pix, setPix] = useState(null); // { qrBase64, copiaECola, ... }
+  const [pix, setPix] = useState(null);
   const [copiado, setCopiado] = useState(false);
-
-  // ✅ Se vier UUID, não deixa ficar nessa tela (mas também não navega sozinho)
-  useEffect(() => {
-    if (assinaturaIdRaw && assinaturaIdNumber === null) {
-      setErro("Link de pagamento inválido (ID não numérico). Volte e clique em Pagar pela Home.");
-    }
-  }, [assinaturaIdRaw, assinaturaIdNumber]);
 
   async function handlePagar() {
     if (!isIdValido) {
-      setErro("assinaturaId inválido. Precisa ser um número inteiro (ex: 1, 2, 3).");
+      setErro("assinaturaId inválido. Volte e clique em Pagar pela Home.");
       return;
     }
 
@@ -53,7 +66,6 @@ export default function Pagamento() {
       const { data } = await api.post("/pagamentos/pix", {
         assinaturaId: assinaturaIdNumber,
       });
-
       setPix(data);
     } catch (e) {
       const status = e?.response?.status;
@@ -66,63 +78,40 @@ export default function Pagamento() {
         "Falha ao gerar PIX. Tente novamente.";
 
       const finalMsg = Array.isArray(msg) ? msg.join(", ") : msg;
-
       setErro(status ? `Erro ${status}: ${finalMsg}` : finalMsg);
     } finally {
       setLoadingPix(false);
     }
   }
 
-  // ✅ DEMO MAIS RÁPIDO (SEM BACKEND): marca a sessão como CONFIRMADO no localStorage
-  function handleJaPagueiDemo() {
-    const sessaoId = location.state?.sessaoId;
+  // ✅ Pagamento já realizado -> check-in REAL + marca confirmado + volta
+  function handleJaPaguei() {
+    const alunoId = toNonEmptyString(localStorage.getItem("usuarioId"));
+    const sessaoIdFinal = toNonEmptyString(localStorage.getItem(STORAGE_SESSAO));
 
-    if (!sessaoId) {
-      alert("Não encontrei sessaoId. Volte e clique em Pagar pela Home.");
+    if (!sessaoIdFinal) {
+      alert("Sessão não encontrada. Volte e clique em Pagar em uma aula.");
+      return;
+    }
+    if (!alunoId) {
+      alert("Usuário não identificado. Faça login novamente.");
       return;
     }
 
+    // 1) check-in REAL
+    socket.emit("checkin:create", { alunoId, sessaoId: sessaoIdFinal });
+
+    // 2) feedback visual (verde) no front
     try {
       const raw = localStorage.getItem("reservas");
       const reservas = raw ? JSON.parse(raw) : {};
-      reservas[sessaoId] = "CONFIRMADO";
+      reservas[sessaoIdFinal] = "CONFIRMADO";
       localStorage.setItem("reservas", JSON.stringify(reservas));
-      navigate("/home");
-    } catch {
-      alert("Falha ao salvar confirmação (demo).");
-    }
-  }
+    } catch {}
 
-  // ✅ DEMO COM BACKEND (se você criar o endpoint)
-  async function handleConfirmarDemoBackend() {
-    if (!isIdValido) {
-      setErro("assinaturaId inválido. Não dá pra confirmar.");
-      return;
-    }
-
-    setErro("");
-    setLoadingConfirm(true);
-
-    try {
-      // Sugestão: POST /pagamentos/confirmar-demo com { assinaturaId }
-      await api.post("/pagamentos/confirmar-demo", { assinaturaId: assinaturaIdNumber });
-      navigate("/home");
-    } catch (e) {
-      const status = e?.response?.status;
-      const payload = e?.response?.data;
-
-      const msg =
-        payload?.message ||
-        payload?.error ||
-        payload?.details ||
-        "Falha ao confirmar pagamento (demo).";
-
-      const finalMsg = Array.isArray(msg) ? msg.join(", ") : msg;
-
-      setErro(status ? `Erro ${status}: ${finalMsg}` : finalMsg);
-    } finally {
-      setLoadingConfirm(false);
-    }
+    // 3) limpa e volta
+    localStorage.removeItem(STORAGE_SESSAO);
+    navigate("/home");
   }
 
   async function copiar() {
@@ -153,8 +142,6 @@ export default function Pagamento() {
           <button onClick={() => navigate(-1)} style={styles.backBtn}>
             Voltar
           </button>
-
-       
           <h1 style={styles.title}>Pagamento</h1>
         </div>
 
@@ -164,11 +151,9 @@ export default function Pagamento() {
               <div style={styles.label}>Assinatura</div>
               <div style={styles.value}>{isIdValido ? assinaturaIdNumber : "-"}</div>
 
-              {!isIdValido && assinaturaIdRaw ? (
-                <div style={{ ...styles.mini, marginTop: 6 }}>
-                  Recebido: <b>{assinaturaIdRaw}</b>
-                </div>
-              ) : null}
+              <div style={{ ...styles.mini, marginTop: 8 }}>
+                Sessão: <b>{sessaoId ?? "-"}</b>
+              </div>
             </div>
 
             <button
@@ -211,15 +196,9 @@ export default function Pagamento() {
               </button>
             </div>
 
-            {/* ✅ BOTÃO DEMO (SEM BACKEND) */}
-            <button onClick={handleJaPagueiDemo} style={styles.demoBtn}>
-              Pagamento já realizado! 
+            <button onClick={handleJaPaguei} style={styles.demoBtn}>
+              Pagamento já realizado!
             </button>
-
-      
-            <div style={styles.mini}>
-              
-            </div>
           </div>
         ) : (
           <div style={styles.hint}>
@@ -292,23 +271,6 @@ const styles = {
     background: "rgba(226,241,99,.10)",
     color: "#E2F163",
     fontWeight: 800,
-    cursor: "pointer",
-  },
-  confirmBtn: {
-    background: "#E2F163",
-    border: "none",
-    borderRadius: 12,
-    padding: "10px 14px",
-    fontWeight: 900,
-    color: "#111",
-  },
-  secondaryBtn: {
-    background: "rgba(255,255,255,0.06)",
-    border: "1px solid rgba(255,255,255,0.18)",
-    borderRadius: 12,
-    padding: "10px 14px",
-    fontWeight: 800,
-    color: "#e5e7eb",
     cursor: "pointer",
   },
   error: {

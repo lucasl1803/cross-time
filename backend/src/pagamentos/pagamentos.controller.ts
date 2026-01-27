@@ -1,4 +1,4 @@
-import { Body, Controller, Post } from "@nestjs/common";
+import { Body, Controller, Patch, Post } from "@nestjs/common";
 import { CreatePixDto } from "./dto/create-pix.dto";
 import { PagamentosService } from "./pagamentos.service";
 
@@ -8,7 +8,12 @@ export class PagamentosController {
 
   @Post("pix")
   criarPix(@Body() dto: CreatePixDto) {
-    // dto.assinaturaId agora é number
     return this.service.criarPixMercadoPago(dto.assinaturaId);
+  }
+
+  //  confirmar pagamento manualmente
+  @Patch("confirmar")
+  confirmar(@Body() dto: CreatePixDto) {
+    return this.service.confirmarPagamentoDemo(dto.assinaturaId);
   }
 }
