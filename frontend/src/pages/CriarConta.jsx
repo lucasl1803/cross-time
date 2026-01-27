@@ -46,7 +46,6 @@ export default function CriarConta() {
     }
 
     
-    localStorage.setItem("role", form.tipo);
 
     navigate("/home");
   }

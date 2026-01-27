@@ -218,8 +218,7 @@ export default function Pagamento() {
 
       
             <div style={styles.mini}>
-              * O QR do PIX não abre “site” do Mercado Pago. Você paga pelo app do seu banco/MP,
-              escaneando o QR ou colando o código.
+              
             </div>
           </div>
         ) : (

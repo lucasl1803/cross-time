@@ -6,12 +6,15 @@ import { listarSessoes } from "../services/sessoes";
 const STORAGE = {
   BOX_NAME: "box:nome",
   BOX_AULAS: "box:aulas",
-  ROLE: "role",
+  BOX_EMAILS: "box:emails",    
+  PERFIL: "perfil",
+  USUARIO_ID: "usuarioId",
+  EMAIL: "email",              
   RESERVAS: "reservas",
-
 };
 
-// ✅ HOTFIX HOJE: ID da assinatura que existe no seu Prisma Studio
+
+// ID da assinatura que existe no seu Prisma Studio
 const ASSINATURA_DEMO_ID = 1;
 
 const mockSessoes = [
@@ -42,26 +45,54 @@ function loadArray(key) {
 export default function Home() {
   const navigate = useNavigate();
 
-  const role = localStorage.getItem(STORAGE.ROLE) || "ALUNO";
-  const isCoach = role === "COACH";
+  // perfil vem do login do backend: "ALUNO" | "ADMIN"
+  const perfil = localStorage.getItem(STORAGE.PERFIL) || "ALUNO";
+  const isCoach = perfil === "ADMIN";
+
+  useEffect(() => {
+  if (isCoach) return;
+
+  const emailLogado = (localStorage.getItem(STORAGE.EMAIL) || "").toLowerCase().trim();
+  const emailsAutorizados = loadArray(STORAGE.BOX_EMAILS).map((e) =>
+    String(e).toLowerCase().trim()
+  );
+
+  const autorizado = emailLogado && emailsAutorizados.includes(emailLogado);
+
+  if (!autorizado) {
+    localStorage.removeItem(STORAGE.PERFIL);
+    localStorage.removeItem(STORAGE.USUARIO_ID);
+    localStorage.removeItem(STORAGE.RESERVAS);
+    navigate("/login");
+  }
+}, [isCoach, navigate]);
+
 
   const boxNome = localStorage.getItem(STORAGE.BOX_NAME) || "Sua Box";
 
+  //(não troca API <-> mock)
   const [sessoesApi, setSessoesApi] = useState([]);
+  const [loadingApi, setLoadingApi] = useState(true);
+  const [apiOk, setApiOk] = useState(false);
 
   useEffect(() => {
+    let alive = true;
+
     async function carregarSessoes() {
+      setLoadingApi(true);
+      setApiOk(false);
+
       try {
         const data = await listarSessoes();
 
-        const mapped = data.map((x) => {
+        const mapped = (data || []).map((x) => {
           const horario = new Date(x.horaInicio).toLocaleTimeString("pt-BR", {
             hour: "2-digit",
             minute: "2-digit",
           });
 
           return {
-            id: x.id,
+            id: Number(x.id),
             horario,
             modalidade: x.wod?.titulo || "Aula",
             coach: "",
@@ -72,29 +103,35 @@ export default function Home() {
           };
         });
 
+        if (!alive) return;
         setSessoesApi(mapped);
+        setApiOk(true);
       } catch (err) {
         console.error("Erro ao carregar sessoes:", err);
+        if (!alive) return;
+        setSessoesApi([]);
+        setApiOk(false);
+      } finally {
+        if (!alive) return;
+        setLoadingApi(false);
       }
     }
 
     carregarSessoes();
+
+    return () => {
+      alive = false;
+    };
   }, []);
 
-  const sessoes = useMemo(() => {
-    const aulasDaBox = loadArray(STORAGE.BOX_AULAS);
-    if (aulasDaBox.length > 0) return aulasDaBox;
-    return mockSessoes;
-  }, []);
+  const [reservas, setReservas] = useState(() => {
+    const raw = localStorage.getItem(STORAGE.RESERVAS);
+    return raw ? safeParseJSON(raw, {}) : {};
+  });
 
- const [reservas, setReservas] = useState(() => {
-  const raw = localStorage.getItem(STORAGE.RESERVAS);
-  return raw ? JSON.parse(raw) : {};
-});
-
-useEffect(() => {
-  localStorage.setItem(STORAGE.RESERVAS, JSON.stringify(reservas));
-}, [reservas]);
+  useEffect(() => {
+    localStorage.setItem(STORAGE.RESERVAS, JSON.stringify(reservas));
+  }, [reservas]);
 
   const [hoverId, setHoverId] = useState(null);
 
@@ -147,8 +184,34 @@ useEffect(() => {
     closeModal();
   }
 
+  function logout() {
+    localStorage.removeItem(STORAGE.PERFIL);
+    localStorage.removeItem(STORAGE.USUARIO_ID);
+    navigate("/login");
+  }
+
   const selectedStatus = selectedSessao ? reservas[selectedSessao.id] : undefined;
-  const sessoesFinal = sessoesApi.length > 0 ? sessoesApi : sessoes;
+
+  // fonte única sem piscar: espera a API terminar e decide
+const sessoesFinal = useMemo(() => {
+  // enquanto carrega, não mostra nada
+  if (loadingApi) return [];
+
+  // coach: prioridade é o que ele cadastrou na MinhaBox
+  if (isCoach) {
+    const aulasDaBox = loadArray(STORAGE.BOX_AULAS);
+    if (aulasDaBox.length > 0) return aulasDaBox;
+  }
+
+  // aluno: prioridade é API (sessões reais do backend)
+  if (!isCoach && apiOk && sessoesApi.length > 0) return sessoesApi;
+
+  // fallback: se não tiver API, usa localStorage
+  const aulasDaBox = loadArray(STORAGE.BOX_AULAS);
+  if (aulasDaBox.length > 0) return aulasDaBox;
+
+  return mockSessoes;
+}, [loadingApi, isCoach, apiOk, sessoesApi]);
 
   return (
     <div style={s.page}>
@@ -174,9 +237,9 @@ useEffect(() => {
         </div>
 
         <div style={s.bottom}>
-          <a href="/login" style={s.logout}>
+          <button type="button" onClick={logout} style={s.logoutBtn}>
             Sair
-          </a>
+          </button>
 
           <div style={s.modePill}>{isCoach ? "Modo Coach" : "Modo Aluno"}</div>
         </div>
@@ -186,94 +249,94 @@ useEffect(() => {
         <section style={s.headerCard}>
           <div>
             <div style={s.hello}>Olá, Lucas!</div>
-            <div style={s.subtitle}>Vamos realizar o check-in hoje?</div>
+            <div style={s.subtitle}>
+              {isCoach ? "Visão geral da agenda de aulas" : "Vamos realizar o check-in hoje?"}
+            </div>
           </div>
 
           <div style={s.headerRight}>
             <div style={s.boxName}>{boxNome}</div>
 
-            {!isCoach ? (
-              <div style={s.reservasText}>
-                Minhas reservas: <strong>{qtdReservasHoje}</strong>
-              </div>
-            ) : null}
+        
           </div>
         </section>
 
         <section style={s.listWrap}>
           <div style={s.list}>
-            {sessoesFinal.map((sessao) => {
-              const isHover = hoverId === sessao.id;
+            {loadingApi ? (
+              <div style={{ opacity: 0.7, padding: 12 }}>Carregando sessões do servidor...</div>
+            ) : (
+              sessoesFinal.map((sessao) => {
+                const isHover = hoverId === sessao.id;
 
-              const status = reservas[sessao.id];
-              const isPending = status === "PENDENTE";
-              const isConfirmed = status === "CONFIRMADO";
+                const status = reservas[sessao.id];
+                const isPending = status === "PENDENTE";
+                const isConfirmed = status === "CONFIRMADO";
 
-              const inscritos = Number(sessao.inscritos ?? 0);
-              const capacidade = Number(sessao.capacidade ?? 0);
+                const inscritos = Number(sessao.inscritos ?? 0);
+                const capacidade = Number(sessao.capacidade ?? 0);
 
-              return (
-                <div
-                  key={sessao.id}
-                  onMouseEnter={() => setHoverId(sessao.id)}
-                  onMouseLeave={() => setHoverId(null)}
-                  onClick={() => openModal(sessao)}
-                  style={{
-                    ...s.card,
-                    ...(isHover ? s.cardHover : null),
-                    ...(isPending ? s.cardPending : null),
-                    ...(isConfirmed ? s.cardConfirmed : null),
-                  }}
-                  title="Clique para ver opções"
-                  role="button"
-                >
-                  <div style={s.cardLeft}>
-                    <div style={s.time}>{sessao.horario}</div>
+                return (
+                  <div
+                    key={sessao.id}
+                    onMouseEnter={() => setHoverId(sessao.id)}
+                    onMouseLeave={() => setHoverId(null)}
+                    onClick={() => openModal(sessao)}
+                    style={{
+                      ...s.card,
+                      ...(isHover ? s.cardHover : null),
+                      ...(isPending ? s.cardPending : null),
+                      ...(isConfirmed ? s.cardConfirmed : null),
+                    }}
+                    title="Clique para ver opções"
+                    role="button"
+                  >
+                    <div style={s.cardLeft}>
+                      <div style={s.time}>{sessao.horario}</div>
 
-                    <div>
-                      <div style={s.modality}>{sessao.modalidade}</div>
-                      <div style={s.coach}>
-                        {sessao.coach}
-                        {sessao.duracaoMin ? ` • ${sessao.duracaoMin} min` : ""}
-                      </div>
-
-                      {isPending && (
-                        <div style={s.tagRow}>
-                          <div style={s.tagPending}>Pendente</div>
-
-                          {/* ✅ HOTFIX HOJE: sempre manda ID numérico da assinatura */}
-                          <button
-                            style={s.payBtn}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              console.log("DEBUG: indo pro pagamento", { assinaturaId: ASSINATURA_DEMO_ID });
-                             navigate(`/pagamento/${ASSINATURA_DEMO_ID}`, {
-  state: { sessaoId: sessao.id },
-});
-
-                            }}
-                          >
-                            Pagar
-                          </button>
+                      <div>
+                        <div style={s.modality}>{sessao.modalidade}</div>
+                        <div style={s.coach}>
+                          {sessao.coach}
+                          {sessao.duracaoMin ? ` • ${sessao.duracaoMin} min` : ""}
                         </div>
-                      )}
 
-                      {isConfirmed && <div style={s.tagConfirmed}>Confirmado</div>}
+                        {/* ✅ aluno vê fluxo de pagamento/reserva */}
+                        {!isCoach && isPending && (
+                          <div style={s.tagRow}>
+                            <div style={s.tagPending}>Pendente</div>
+
+                            <button
+                              style={s.payBtn}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigate(`/pagamento/${ASSINATURA_DEMO_ID}`, {
+                                  state: { sessaoId: sessao.id },
+                                });
+                              }}
+                            >
+                              Pagar
+                            </button>
+                          </div>
+                        )}
+
+                        {!isCoach && isConfirmed && <div style={s.tagConfirmed}>Confirmado</div>}
+                      </div>
+                    </div>
+
+                    <div style={s.cardRight}>
+                      <span style={s.spots}>
+                        {inscritos}/{capacidade}
+                      </span>
+
+                      <span style={s.userPill}>
+                        <img src={userIcon} alt="" style={s.userIcon} />
+                      </span>
                     </div>
                   </div>
-
-                  <div style={s.cardRight}>
-                    <span style={s.spots}>
-                      {inscritos}/{capacidade}
-                    </span>
-
-                    <span style={s.userPill}>
-                      <img src={userIcon} alt="" style={s.userIcon} />
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
+                );
+              })
+            )}
           </div>
         </section>
       </main>
@@ -288,7 +351,7 @@ useEffect(() => {
           >
             <div style={s.modalHeader}>
               <div style={s.modalTitle}>
-                {selectedStatus ? "Gerenciar reserva" : "Confirmar reserva"}
+                {isCoach ? "Detalhes da sessão" : selectedStatus ? "Gerenciar reserva" : "Confirmar reserva"}
               </div>
               <button style={s.modalClose} onClick={closeModal} aria-label="Fechar">
                 ✕
@@ -309,14 +372,14 @@ useEffect(() => {
               <div style={s.modalLine}>
                 <span style={s.modalLabel}>Coach</span>
                 <span style={s.modalValue}>{selectedSessao?.coach}</span>
-
-                {selectedSessao?.duracaoMin ? (
-                  <div style={s.modalLine}>
-                    <span style={s.modalLabel}>Duração</span>
-                    <span style={s.modalValue}>{selectedSessao.duracaoMin} min</span>
-                  </div>
-                ) : null}
               </div>
+
+              {selectedSessao?.duracaoMin ? (
+                <div style={s.modalLine}>
+                  <span style={s.modalLabel}>Duração</span>
+                  <span style={s.modalValue}>{selectedSessao.duracaoMin} min</span>
+                </div>
+              ) : null}
 
               {selectedSessao?.descricao ? (
                 <div style={s.modalDesc}>
@@ -325,13 +388,13 @@ useEffect(() => {
                 </div>
               ) : null}
 
-              <div style={s.modalHint}>
-                {selectedStatus
-                  ? `Status atual: ${
-                      selectedStatus === "PENDENTE" ? "Pagamento pendente" : "Pagamento confirmado"
-                    }`
-                  : "Confirme a reserva para seguir para o pagamento e garantir sua vaga na aula."}
-              </div>
+              {!isCoach && (
+                <div style={s.modalHint}>
+                  {selectedStatus
+                    ? `Status atual: ${selectedStatus === "PENDENTE" ? "Pagamento pendente" : "Pagamento confirmado"}`
+                    : "Confirme a reserva para seguir para o pagamento e garantir sua vaga na aula."}
+                </div>
+              )}
             </div>
 
             <div style={s.modalActions}>
@@ -339,22 +402,27 @@ useEffect(() => {
                 Voltar
               </button>
 
-              {selectedStatus ? (
+              {/* ✅ coach não mexe em reserva */}
+              {!isCoach && (
                 <>
-                  <button style={s.btnDanger} onClick={cancelarReserva}>
-                    Cancelar reserva
-                  </button>
+                  {selectedStatus ? (
+                    <>
+                      <button style={s.btnDanger} onClick={cancelarReserva}>
+                        Cancelar reserva
+                      </button>
 
-                  {selectedStatus === "PENDENTE" && (
-                    <button style={s.btnPrimary} onClick={marcarComoConfirmado}>
-                      Marcar como confirmado
+                      {selectedStatus === "PENDENTE" && (
+                        <button style={s.btnPrimary} onClick={marcarComoConfirmado}>
+                          Marcar como confirmado
+                        </button>
+                      )}
+                    </>
+                  ) : (
+                    <button style={s.btnPrimary} onClick={confirmarReserva}>
+                      Confirmar
                     </button>
                   )}
                 </>
-              ) : (
-                <button style={s.btnPrimary} onClick={confirmarReserva}>
-                  Confirmar
-                </button>
               )}
             </div>
           </div>
@@ -364,7 +432,7 @@ useEffect(() => {
   );
 }
 
-// ⬇️ estilos: mantém os seus (não alterei nada aqui)
+// estilos (o seu const s vai aqui embaixo)
 const s = {
   page: {
     height: "100vh",
@@ -425,10 +493,13 @@ const s = {
     gap: 12,
     paddingTop: 18,
   },
-  logout: {
+  logoutBtn: {
+    background: "transparent",
+    border: "none",
+    padding: 0,
     color: "rgba(255,255,255,.82)",
-    textDecoration: "none",
     fontSize: 14,
+    cursor: "pointer",
     opacity: 0.9,
   },
   modePill: {
@@ -619,6 +690,24 @@ const s = {
     fontWeight: 900,
     cursor: "pointer",
   },
-  btnPrimary: { height: 42, padding: "0 16px", borderRadius: 12, border: "none", background: "#E2F163", color: "#111", fontWeight: 900, cursor: "pointer" },
-  btnDanger: { height: 42, padding: "0 16px", borderRadius: 12, border: "1px solid rgba(226,241,99,.35)", background: "rgba(226,241,99,.10)", color: "#E2F163", fontWeight: 900, cursor: "pointer" },
+  btnPrimary: {
+    height: 42,
+    padding: "0 16px",
+    borderRadius: 12,
+    border: "none",
+    background: "#E2F163",
+    color: "#111",
+    fontWeight: 900,
+    cursor: "pointer",
+  },
+  btnDanger: {
+    height: 42,
+    padding: "0 16px",
+    borderRadius: 12,
+    border: "1px solid rgba(226,241,99,.35)",
+    background: "rgba(226,241,99,.10)",
+    color: "#E2F163",
+    fontWeight: 900,
+    cursor: "pointer",
+  },
 };

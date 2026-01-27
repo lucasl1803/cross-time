@@ -2,11 +2,12 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 const STORAGE = {
-  ROLE: "role",
+  PERFIL: "perfil",
   BOX_NAME: "box:nome",
   BOX_EMAILS: "box:emails",
   BOX_AULAS: "box:aulas",
 };
+
 
 function safeParseJSON(value, fallback) {
   try {
@@ -35,13 +36,13 @@ function isValidEmail(email) {
 export default function MinhaBox() {
   const navigate = useNavigate();
 
-  const role = localStorage.getItem(STORAGE.ROLE) || "ALUNO";
-  const isCoach = role === "COACH";
+const perfil = localStorage.getItem(STORAGE.PERFIL);
+const isCoach = perfil === "ADMIN";
 
-  // bloqueia se nao for coach
-  useEffect(() => {
-    if (!isCoach) navigate("/home");
-  }, [isCoach, navigate]);
+useEffect(() => {
+  if (!isCoach) navigate("/home");
+}, [isCoach, navigate]);
+
 
  
   const [boxNome, setBoxNome] = useState(() => localStorage.getItem(STORAGE.BOX_NAME) || "");
@@ -135,16 +136,28 @@ export default function MinhaBox() {
 
         <div style={s.navItems}>
           <div style={s.navItemIdle} onClick={() => navigate("/home")} role="button">
-            Home
-          </div>
+  Home
+</div>
+
+
 
           <div style={s.navItemActive}>Minha Box</div>
         </div>
 
         <div style={s.bottom}>
-          <a href="/login" style={s.logout}>
-            Sair
-          </a>
+       <button
+
+  type="button"
+  style={s.logoutBtn}
+  onClick={() => {
+    localStorage.removeItem("perfil");
+    localStorage.removeItem("usuarioId");
+    navigate("/login");
+  }}
+>
+  Sair
+</button>
+
 
           <div style={s.modePill}>Modo Coach</div>
         </div>
@@ -533,4 +546,15 @@ const s = {
   time: { color: "#E2F163" },
   aulaName: { fontWeight: 900 },
   muted: { opacity: 0.72, fontSize: 13, marginTop: 2 },
+
+  logoutBtn: {
+  background: "transparent",
+  border: "none",
+  padding: 0,
+  color: "rgba(255,255,255,.82)",
+  fontSize: 14,
+  cursor: "pointer",
+  opacity: 0.9,
+},
+
 };

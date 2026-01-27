@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { api } from "../services/api";
 
 import bg from "../assets/Treinando 1.png";
 import logo from "../assets/Logo Crosstime.png";
@@ -9,17 +10,41 @@ import iconLock from "../assets/cadeado icone.png";
 export default function Login() {
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
-  const [senha, setSenha] = useState("");
+  const [senha, setSenha] = useState(""); 
+  const [error, setError] = useState("");
 
-  function onSubmit(e) {
+  async function onSubmit(e) {
     e.preventDefault();
-    navigate("/home"); 
+    setError("");
+
+    try {
+      const response = await api.post("/auth/login", {
+        email,
+      });
+
+      const usuario = response.data;
+
+      const emailNorm = email.toLowerCase().trim();
+      localStorage.setItem("email", emailNorm);
+
+
+      localStorage.setItem("usuarioId", usuario.id);
+      localStorage.setItem("perfil", usuario.tipo);
+
+      if (usuario.tipo === "ALUNO") {
+        navigate("/home");
+      } else {
+        navigate("/minha-box");
+
+      }
+    } catch {
+      setError("Email não autorizado para acesso.");
+    }
   }
 
   return (
     <div style={s.page}>
       <div style={s.card}>
-       
         <div style={s.left}>
           <div style={s.logoWrap}>
             <img src={logo} alt="CrossTime" style={s.logo} />
@@ -37,6 +62,7 @@ export default function Login() {
                 onChange={(e) => setEmail(e.target.value)}
                 type="email"
                 autoComplete="email"
+                required
               />
             </div>
 
@@ -44,13 +70,16 @@ export default function Login() {
               <img src={iconLock} alt="" style={s.icon} />
               <input
                 style={s.input}
-                placeholder="Senha"
+                placeholder="Senha "
                 value={senha}
                 onChange={(e) => setSenha(e.target.value)}
                 type="password"
-                autoComplete="current-password"
               />
             </div>
+
+            {error && (
+              <div style={{ color: "#ffd2d2", fontSize: 13 }}>{error}</div>
+            )}
 
             <button type="submit" style={s.btn}>
               LOGIN
@@ -65,7 +94,6 @@ export default function Login() {
           </form>
         </div>
 
-      
         <div style={s.right}>
           <div style={s.bg} />
           <div style={s.fade} />
@@ -76,7 +104,6 @@ export default function Login() {
 }
 
 const s = {
- 
   page: {
     width: "100vw",
     height: "100vh",
@@ -89,16 +116,12 @@ const s = {
     fontFamily: "Inter, Arial, sans-serif",
   },
 
-
   card: {
     width: "100%",
     height: "100%",
     background: "#1E1E1E",
-    borderRadius: 0,
-    overflow: "hidden",
     display: "grid",
-    gridTemplateColumns: "460px 1fr", 
-    boxShadow: "none",
+    gridTemplateColumns: "460px 1fr",
   },
 
   left: {
@@ -111,7 +134,7 @@ const s = {
   },
 
   logoWrap: { display: "flex", alignItems: "center" },
-  logo: { height: 90, objectFit: "contain" },
+  logo: { height: 90 },
 
   title: {
     margin: 0,
@@ -121,7 +144,11 @@ const s = {
     lineHeight: 1.15,
   },
 
-  form: { display: "flex", flexDirection: "column", gap: 16 },
+  form: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 16,
+  },
 
   inputWrap: {
     height: 48,
@@ -133,7 +160,7 @@ const s = {
     padding: "0 16px",
   },
 
-  icon: { width: 18, height: 18, opacity: 0.95 },
+  icon: { width: 18, height: 18 },
 
   input: {
     border: "none",
@@ -159,16 +186,17 @@ const s = {
 
   footer: {
     marginTop: 16,
-    color: "rgba(255,255,255,.80)",
+    color: "rgba(255,255,255,.8)",
     fontSize: 14,
   },
 
-  link: { color: "#E2F163", fontWeight: 800, textDecoration: "none" },
-
-  right: {
-    position: "relative",
-    background: "#111",
+  link: {
+    color: "#E2F163",
+    fontWeight: 800,
+    textDecoration: "none",
   },
+
+  right: { position: "relative" },
 
   bg: {
     position: "absolute",
@@ -179,11 +207,10 @@ const s = {
     transform: "scale(1.03)",
   },
 
-  
   fade: {
     position: "absolute",
     inset: 0,
     background:
-      "linear-gradient(90deg, rgba(0,0,0,.10) 0%, rgba(0,0,0,.45) 55%, rgba(0,0,0,.78) 100%)",
+      "linear-gradient(90deg, rgba(0,0,0,.1) 0%, rgba(0,0,0,.45) 55%, rgba(0,0,0,.78) 100%)",
   },
 };
